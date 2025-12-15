@@ -1,0 +1,16 @@
+{
+  "ai_provider": "gemini",
+  "gemini_api_key": "-lfuJ1PMGVpemNE",
+  "gemini_model": "gemini-2.0-flash",
+  "claude_model": "claude-sonnet-4-5-20250929",
+  "openai_api_key": "",
+  "openai_model": "gpt-4o",
+  "max_tokens": 8192,
+  "temperature": 1,
+  "daytona_enabled": false,
+  "daytona_workspace_url": "",
+  "auto_preview": true,
+  "cost_limit_monthly": 100,
+  "current_month_usage": 1.3178999999999998,
+  "last_reset_date": "2025-11-10T18:24:34.097Z"
+}

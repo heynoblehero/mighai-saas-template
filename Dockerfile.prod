@@ -1,0 +1,109 @@
+# Production Dockerfile with Git Integration for Platform Updates
+FROM node:20-slim AS production
+
+# Install system dependencies including git
+RUN apt-get update && apt-get install -y \
+    git \
+    wget \
+    sqlite3 \
+    python3 \
+    make \
+    g++ \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create non-root user
+RUN groupadd -g 1001 nodejs && \
+    useradd -r -u 1001 -g nodejs nextjs
+
+WORKDIR /app
+
+# Set git configuration for the container (needed for git operations)
+RUN git config --global user.name "Platform Auto-Update" && \
+    git config --global user.email "noreply@platform.local" && \
+    git config --global init.defaultBranch main
+
+# Copy source code (including .git directory for version tracking)
+COPY . .
+
+# Ensure we have git history for version tracking
+RUN if [ ! -d ".git" ]; then \
+        echo "⚠️  No .git directory found, initializing..."; \
+        ARG REPO_URL=https://github.com/heynoblehero/mighai-test.git; \
+        ARG BRANCH=main; \
+        rm -rf * .[^.]* 2>/dev/null || true; \
+        git clone --branch ${BRANCH} ${REPO_URL} .; \
+        echo "🎯 Cloned repository from ${REPO_URL} (branch: ${BRANCH})"; \
+    else \
+        echo "✅ Git repository already present"; \
+    fi && \
+    git log --oneline -3 2>/dev/null || echo "⚠️  No git history available"
+
+# Install dependencies
+RUN npm ci --omit=dev && npm cache clean --force
+
+# Rebuild native modules for current Node.js version
+RUN npm rebuild better-sqlite3
+
+# Build the application (Next.js production build)
+RUN npm run build
+
+# Create necessary directories and database file with proper permissions
+RUN mkdir -p data uploads logs && \
+    touch site_builder.db && \
+    chown -R nextjs:nodejs . && \
+    chmod -R 755 data uploads logs && \
+    chmod 644 site_builder.db
+
+# Create enhanced startup script with git capabilities
+RUN echo '#!/bin/sh' > entrypoint.sh && \
+    echo 'echo "🚀 Starting SaaS Application with Git Integration..."' >> entrypoint.sh && \
+    echo 'echo "🌐 Domain: $DOMAIN"' >> entrypoint.sh && \
+    echo 'echo "📧 Admin: $ADMIN_EMAIL"' >> entrypoint.sh && \
+    echo 'echo "📂 Working directory: $(pwd)"' >> entrypoint.sh && \
+    echo 'echo "👤 Current user: $(whoami)"' >> entrypoint.sh && \
+    echo '' >> entrypoint.sh && \
+    echo '# Git repository status' >> entrypoint.sh && \
+    echo 'echo "📋 Git Status:"' >> entrypoint.sh && \
+    echo 'if [ -d ".git" ]; then' >> entrypoint.sh && \
+    echo '  git status --porcelain || echo "⚠️  Git status check failed"' >> entrypoint.sh && \
+    echo '  echo "🏷️  Current version: $(git rev-parse --short HEAD 2>/dev/null || echo \"unknown\")"' >> entrypoint.sh && \
+    echo '  echo "🌿 Current branch: $(git branch --show-current 2>/dev/null || echo \"unknown\")"' >> entrypoint.sh && \
+    echo '  echo "🔗 Remote origin: $(git remote get-url origin 2>/dev/null || echo \"not set\")"' >> entrypoint.sh && \
+    echo 'else' >> entrypoint.sh && \
+    echo '  echo "⚠️  No git repository found in container"' >> entrypoint.sh && \
+    echo 'fi' >> entrypoint.sh && \
+    echo '' >> entrypoint.sh && \
+    echo '# Database status' >> entrypoint.sh && \
+    echo 'echo "🗄️  Database file status:"' >> entrypoint.sh && \
+    echo 'ls -la ./site_builder.db || echo "Database file not found"' >> entrypoint.sh && \
+    echo '' >> entrypoint.sh && \
+    echo '# Next.js build status' >> entrypoint.sh && \
+    echo 'echo "🏗️  Next.js build status:"' >> entrypoint.sh && \
+    echo 'ls -la .next/ | head -5 2>/dev/null || echo "No .next build directory found"' >> entrypoint.sh && \
+    echo '' >> entrypoint.sh && \
+    echo '# Environment check' >> entrypoint.sh && \
+    echo 'echo "🔧 Environment variables:"' >> entrypoint.sh && \
+    echo 'echo "DATABASE_URL: ${DATABASE_URL:-not set}"' >> entrypoint.sh && \
+    echo 'echo "NODE_ENV: ${NODE_ENV:-not set}"' >> entrypoint.sh && \
+    echo '' >> entrypoint.sh && \
+    echo 'echo "🚀 Starting Node.js application..."' >> entrypoint.sh && \
+    echo 'exec node server.js' >> entrypoint.sh && \
+    chmod +x entrypoint.sh && \
+    chown nextjs:nodejs entrypoint.sh
+
+# Switch to non-root user
+USER nextjs
+
+EXPOSE 3000
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+  CMD wget --no-verbose --tries=1 --spider http://localhost:3000/api/health || exit 1
+
+# Set environment variables for git operations
+ENV GIT_TERMINAL_PROMPT=0
+ENV GIT_AUTHOR_NAME="Platform Auto-Update"
+ENV GIT_AUTHOR_EMAIL="noreply@platform.local"
+ENV GIT_COMMITTER_NAME="Platform Auto-Update" 
+ENV GIT_COMMITTER_EMAIL="noreply@platform.local"
+
+CMD ["./entrypoint.sh"]

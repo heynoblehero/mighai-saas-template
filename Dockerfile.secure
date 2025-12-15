@@ -1,0 +1,84 @@
+# Multi-stage build - Source code protected, only built files in final image
+FROM node:20-slim AS base
+
+# Stage 1: Install dependencies
+FROM base AS deps
+RUN apt-get update && apt-get install -y \
+    python3 \
+    make \
+    g++ \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci && npm cache clean --force
+
+# Stage 2: Build the application
+FROM base AS builder
+WORKDIR /app
+
+COPY --from=deps /app/node_modules ./node_modules
+COPY . .
+
+# Build Next.js app
+RUN npm run build
+
+# Stage 3: Production image - ONLY runtime files, NO source code
+FROM node:20-slim AS runner
+
+# Install runtime dependencies
+RUN apt-get update && apt-get install -y \
+    sqlite3 \
+    wget \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create non-root user
+RUN groupadd -g 1001 nodejs && \
+    useradd -r -u 1001 -g nodejs nextjs
+
+WORKDIR /app
+
+ENV NODE_ENV=production
+
+# Copy ONLY production dependencies
+COPY --from=deps --chown=nextjs:nodejs /app/node_modules ./node_modules
+
+# Copy ONLY built Next.js files (no source code)
+COPY --from=builder --chown=nextjs:nodejs /app/.next ./.next
+COPY --from=builder --chown=nextjs:nodejs /app/public ./public
+
+# Copy ONLY necessary runtime files
+COPY --from=builder --chown=nextjs:nodejs /app/package*.json ./
+COPY --from=builder --chown=nextjs:nodejs /app/server.js ./
+COPY --from=builder --chown=nextjs:nodejs /app/next.config.js ./
+
+# Copy runtime directories (these contain server-side code, not source JSX/TSX)
+COPY --from=builder --chown=nextjs:nodejs /app/lib ./lib
+COPY --from=builder --chown=nextjs:nodejs /app/middleware ./middleware
+COPY --from=builder --chown=nextjs:nodejs /app/services ./services
+COPY --from=builder --chown=nextjs:nodejs /app/utils ./utils
+COPY --from=builder --chown=nextjs:nodejs /app/custom-routes ./custom-routes
+COPY --from=builder --chown=nextjs:nodejs /app/scripts ./scripts
+
+# Create necessary directories
+RUN mkdir -p data uploads logs && \
+    touch site_builder.db && \
+    chown -R nextjs:nodejs /app && \
+    chmod -R 755 data uploads logs
+
+# Rebuild native modules for production
+RUN npm rebuild better-sqlite3
+
+USER nextjs
+
+EXPOSE 3000
+
+ENV PORT=3000
+ENV HOSTNAME="0.0.0.0"
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+  CMD wget --no-verbose --tries=1 --spider http://localhost:3000/ || exit 1
+
+# Start the server
+CMD ["node", "server.js"]

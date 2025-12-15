@@ -1,0 +1,487 @@
+[
+  {
+    "timestamp": "2025-08-14T08:11:43.406Z",
+    "tokens_used": 2176,
+    "estimated_cost": 0.03264,
+    "month": "2025-08"
+  },
+  {
+    "timestamp": "2025-08-14T08:36:02.499Z",
+    "tokens_used": 1748,
+    "estimated_cost": 0.02622,
+    "month": "2025-08"
+  },
+  {
+    "timestamp": "2025-08-14T08:50:16.116Z",
+    "tokens_used": 1325,
+    "estimated_cost": 0.019875,
+    "month": "2025-08",
+    "type": "reserved-page-generation"
+  },
+  {
+    "timestamp": "2025-08-14T08:51:42.771Z",
+    "tokens_used": 1459,
+    "estimated_cost": 0.021885,
+    "month": "2025-08",
+    "type": "reserved-page-generation"
+  },
+  {
+    "timestamp": "2025-08-15T00:33:12.552Z",
+    "tokens_used": 1609,
+    "estimated_cost": 0.024135,
+    "month": "2025-08",
+    "type": "reserved-page-generation"
+  },
+  {
+    "timestamp": "2025-08-15T00:34:44.704Z",
+    "tokens_used": 1977,
+    "estimated_cost": 0.029655,
+    "month": "2025-08",
+    "type": "reserved-page-generation"
+  },
+  {
+    "timestamp": "2025-08-15T00:59:55.473Z",
+    "tokens_used": 1438,
+    "estimated_cost": 0.02157,
+    "month": "2025-08",
+    "type": "reserved-page-generation"
+  },
+  {
+    "timestamp": "2025-08-15T01:11:14.416Z",
+    "tokens_used": 1581,
+    "estimated_cost": 0.023715,
+    "month": "2025-08",
+    "type": "reserved-page-generation"
+  },
+  {
+    "timestamp": "2025-08-15T01:11:46.199Z",
+    "tokens_used": 1710,
+    "estimated_cost": 0.02565,
+    "month": "2025-08",
+    "type": "reserved-page-generation"
+  },
+  {
+    "timestamp": "2025-08-15T01:12:14.462Z",
+    "tokens_used": 1308,
+    "estimated_cost": 0.01962,
+    "month": "2025-08",
+    "type": "reserved-page-generation"
+  },
+  {
+    "timestamp": "2025-08-15T01:12:47.864Z",
+    "tokens_used": 1537,
+    "estimated_cost": 0.023055,
+    "month": "2025-08",
+    "type": "reserved-page-generation"
+  },
+  {
+    "timestamp": "2025-08-15T01:13:12.823Z",
+    "tokens_used": 1290,
+    "estimated_cost": 0.01935,
+    "month": "2025-08",
+    "type": "reserved-page-generation"
+  },
+  {
+    "timestamp": "2025-08-15T01:14:37.976Z",
+    "tokens_used": 1520,
+    "estimated_cost": 0.0228,
+    "month": "2025-08",
+    "type": "reserved-page-generation"
+  },
+  {
+    "timestamp": "2025-08-15T01:15:11.853Z",
+    "tokens_used": 1353,
+    "estimated_cost": 0.020295,
+    "month": "2025-08",
+    "type": "reserved-page-generation"
+  },
+  {
+    "timestamp": "2025-08-15T01:15:41.052Z",
+    "tokens_used": 1872,
+    "estimated_cost": 0.02808,
+    "month": "2025-08",
+    "type": "reserved-page-generation"
+  },
+  {
+    "timestamp": "2025-08-15T01:48:48.555Z",
+    "tokens_used": 1915,
+    "estimated_cost": 0.028725,
+    "month": "2025-08",
+    "type": "reserved-page-generation"
+  },
+  {
+    "timestamp": "2025-08-15T01:49:19.294Z",
+    "tokens_used": 1948,
+    "estimated_cost": 0.02922,
+    "month": "2025-08",
+    "type": "reserved-page-generation"
+  },
+  {
+    "timestamp": "2025-08-15T01:49:47.592Z",
+    "tokens_used": 1553,
+    "estimated_cost": 0.023295,
+    "month": "2025-08",
+    "type": "reserved-page-generation"
+  },
+  {
+    "timestamp": "2025-08-15T01:50:14.932Z",
+    "tokens_used": 1766,
+    "estimated_cost": 0.02649,
+    "month": "2025-08",
+    "type": "reserved-page-generation"
+  },
+  {
+    "timestamp": "2025-08-15T01:56:23.678Z",
+    "tokens_used": 1639,
+    "estimated_cost": 0.024585,
+    "month": "2025-08",
+    "type": "reserved-page-generation"
+  },
+  {
+    "timestamp": "2025-08-15T03:13:03.502Z",
+    "tokens_used": 1194,
+    "estimated_cost": 0.01791,
+    "month": "2025-08",
+    "type": "reserved-page-generation"
+  },
+  {
+    "timestamp": "2025-08-15T06:53:48.750Z",
+    "tokens_used": 1213,
+    "estimated_cost": 0.018195,
+    "month": "2025-08",
+    "type": "reserved-page-generation"
+  },
+  {
+    "timestamp": "2025-08-15T06:55:30.528Z",
+    "tokens_used": 1733,
+    "estimated_cost": 0.025995,
+    "month": "2025-08",
+    "type": "reserved-page-generation"
+  },
+  {
+    "timestamp": "2025-08-15T06:56:27.794Z",
+    "tokens_used": 1869,
+    "estimated_cost": 0.028034999999999997,
+    "month": "2025-08",
+    "type": "reserved-page-generation"
+  },
+  {
+    "timestamp": "2025-08-15T09:07:06.098Z",
+    "tokens_used": 1750,
+    "estimated_cost": 0.02625,
+    "month": "2025-08",
+    "type": "reserved-page-generation"
+  },
+  {
+    "timestamp": "2025-08-22T02:20:09.132Z",
+    "tokens_used": 1311,
+    "estimated_cost": 0.019665,
+    "month": "2025-08",
+    "type": "reserved-page-generation"
+  },
+  {
+    "timestamp": "2025-08-22T02:51:26.757Z",
+    "tokens_used": 1295,
+    "estimated_cost": 0.019424999999999998,
+    "month": "2025-08",
+    "type": "reserved-page-generation"
+  },
+  {
+    "timestamp": "2025-08-22T06:49:05.216Z",
+    "tokens_used": 1589,
+    "estimated_cost": 0.023835,
+    "month": "2025-08",
+    "type": "reserved-page-generation"
+  },
+  {
+    "timestamp": "2025-08-22T07:05:49.458Z",
+    "tokens_used": 1839,
+    "estimated_cost": 0.027585,
+    "month": "2025-08",
+    "type": "reserved-page-generation"
+  },
+  {
+    "timestamp": "2025-08-22T07:07:55.205Z",
+    "tokens_used": 1395,
+    "estimated_cost": 0.020925,
+    "month": "2025-08",
+    "type": "reserved-page-generation"
+  },
+  {
+    "timestamp": "2025-08-22T07:08:19.994Z",
+    "tokens_used": 1770,
+    "estimated_cost": 0.02655,
+    "month": "2025-08",
+    "type": "reserved-page-generation"
+  },
+  {
+    "timestamp": "2025-08-22T07:08:43.333Z",
+    "tokens_used": 1619,
+    "estimated_cost": 0.024284999999999998,
+    "month": "2025-08",
+    "type": "reserved-page-generation"
+  },
+  {
+    "timestamp": "2025-08-22T07:09:00.476Z",
+    "tokens_used": 1101,
+    "estimated_cost": 0.016515,
+    "month": "2025-08",
+    "type": "reserved-page-generation"
+  },
+  {
+    "timestamp": "2025-08-22T07:09:20.253Z",
+    "tokens_used": 1309,
+    "estimated_cost": 0.019635,
+    "month": "2025-08",
+    "type": "reserved-page-generation"
+  },
+  {
+    "timestamp": "2025-08-22T07:09:41.649Z",
+    "tokens_used": 1427,
+    "estimated_cost": 0.021405,
+    "month": "2025-08",
+    "type": "reserved-page-generation"
+  },
+  {
+    "timestamp": "2025-08-22T07:14:36.203Z",
+    "tokens_used": 1426,
+    "estimated_cost": 0.02139,
+    "month": "2025-08",
+    "type": "reserved-page-generation"
+  },
+  {
+    "timestamp": "2025-08-22T07:15:02.319Z",
+    "tokens_used": 1881,
+    "estimated_cost": 0.028215,
+    "month": "2025-08",
+    "type": "reserved-page-generation"
+  },
+  {
+    "timestamp": "2025-08-22T07:15:29.548Z",
+    "tokens_used": 1795,
+    "estimated_cost": 0.026924999999999998,
+    "month": "2025-08",
+    "type": "reserved-page-generation"
+  },
+  {
+    "timestamp": "2025-08-22T07:15:48.868Z",
+    "tokens_used": 1189,
+    "estimated_cost": 0.017835,
+    "month": "2025-08",
+    "type": "reserved-page-generation"
+  },
+  {
+    "timestamp": "2025-08-22T07:16:12.664Z",
+    "tokens_used": 1662,
+    "estimated_cost": 0.024929999999999997,
+    "month": "2025-08",
+    "type": "reserved-page-generation"
+  },
+  {
+    "timestamp": "2025-08-22T07:16:35.490Z",
+    "tokens_used": 1443,
+    "estimated_cost": 0.021645,
+    "month": "2025-08",
+    "type": "reserved-page-generation"
+  },
+  {
+    "timestamp": "2025-08-22T07:17:01.514Z",
+    "tokens_used": 1429,
+    "estimated_cost": 0.021435,
+    "month": "2025-08",
+    "type": "reserved-page-generation"
+  },
+  {
+    "timestamp": "2025-08-25T18:52:45.281Z",
+    "tokens_used": 1605,
+    "estimated_cost": 0.024075,
+    "month": "2025-08",
+    "type": "reserved-page-generation"
+  },
+  {
+    "timestamp": "2025-11-11T03:19:53.813Z",
+    "tokens_used": 9420,
+    "estimated_cost": 0.14129999999999998,
+    "month": "2025-11",
+    "type": "reserved-page-generation"
+  },
+  {
+    "timestamp": "2025-11-11T03:27:50.688Z",
+    "tokens_used": 8249,
+    "estimated_cost": 0.123735,
+    "month": "2025-11",
+    "type": "reserved-page-generation"
+  },
+  {
+    "timestamp": "2025-11-11T03:32:25.529Z",
+    "tokens_used": 8159,
+    "estimated_cost": 0.12238500000000001,
+    "month": "2025-11",
+    "type": "reserved-page-generation"
+  },
+  {
+    "timestamp": "2025-11-11T04:30:13.072Z",
+    "tokens_used": 10091,
+    "estimated_cost": 0.15136499999999997,
+    "month": "2025-11",
+    "type": "reserved-page-generation"
+  },
+  {
+    "timestamp": "2025-11-11T05:20:16.705Z",
+    "tokens_used": 6843,
+    "estimated_cost": 0.102645,
+    "month": "2025-11",
+    "type": "reserved-page-generation"
+  },
+  {
+    "timestamp": "2025-11-18T20:37:13.332Z",
+    "tokens_used": 7465,
+    "estimated_cost": 0.11197499999999999,
+    "month": "2025-11",
+    "type": "reserved-page-generation"
+  },
+  {
+    "timestamp": "2025-11-18T20:42:51.413Z",
+    "tokens_used": 6373,
+    "estimated_cost": 0.095595,
+    "month": "2025-11",
+    "type": "reserved-page-generation"
+  },
+  {
+    "timestamp": "2025-11-18T20:55:14.828Z",
+    "tokens_used": 7910,
+    "estimated_cost": 0.11864999999999999,
+    "month": "2025-11",
+    "type": "reserved-page-generation"
+  },
+  {
+    "timestamp": "2025-11-18T20:57:16.489Z",
+    "tokens_used": 8740,
+    "estimated_cost": 0.1311,
+    "month": "2025-11",
+    "type": "reserved-page-generation"
+  },
+  {
+    "timestamp": "2025-11-18T21:03:09.297Z",
+    "tokens_used": 7762,
+    "estimated_cost": 0.11642999999999999,
+    "month": "2025-11",
+    "type": "reserved-page-generation"
+  },
+  {
+    "timestamp": "2025-11-18T21:04:59.608Z",
+    "tokens_used": 6848,
+    "estimated_cost": 0.10271999999999999,
+    "month": "2025-11",
+    "type": "reserved-page-generation"
+  },
+  {
+    "timestamp": "2025-11-28T13:57:01.896Z",
+    "tokens_used": 1106,
+    "estimated_cost": 0,
+    "month": "2025-11"
+  },
+  {
+    "timestamp": "2025-11-28T14:00:29.592Z",
+    "tokens_used": 2189,
+    "estimated_cost": 0,
+    "month": "2025-11",
+    "type": "reserved-page-generation"
+  },
+  {
+    "timestamp": "2025-11-28T14:05:27.879Z",
+    "tokens_used": 1970,
+    "estimated_cost": 0,
+    "month": "2025-11"
+  },
+  {
+    "timestamp": "2025-11-28T14:32:25.800Z",
+    "tokens_used": 2060,
+    "estimated_cost": 0,
+    "month": "2025-11",
+    "type": "reserved-page-generation"
+  },
+  {
+    "timestamp": "2025-11-28T14:33:15.668Z",
+    "tokens_used": 2376,
+    "estimated_cost": 0,
+    "month": "2025-11",
+    "type": "reserved-page-generation"
+  },
+  {
+    "timestamp": "2025-11-28T14:47:20.438Z",
+    "tokens_used": 1833,
+    "estimated_cost": 0,
+    "month": "2025-11",
+    "type": "reserved-page-generation"
+  },
+  {
+    "timestamp": "2025-11-28T14:48:31.807Z",
+    "tokens_used": 2343,
+    "estimated_cost": 0,
+    "month": "2025-11"
+  },
+  {
+    "timestamp": "2025-11-28T14:52:59.640Z",
+    "tokens_used": 2220,
+    "estimated_cost": 0,
+    "month": "2025-11",
+    "type": "reserved-page-generation"
+  },
+  {
+    "timestamp": "2025-11-28T14:57:48.084Z",
+    "tokens_used": 1987,
+    "estimated_cost": 0,
+    "month": "2025-11",
+    "type": "reserved-page-generation"
+  },
+  {
+    "timestamp": "2025-11-28T21:14:45.321Z",
+    "tokens_used": 2158,
+    "estimated_cost": 0,
+    "month": "2025-11",
+    "type": "reserved-page-generation"
+  },
+  {
+    "timestamp": "2025-12-03T20:18:51.975Z",
+    "tokens_used": 2165,
+    "estimated_cost": 0,
+    "month": "2025-12",
+    "type": "reserved-page-generation"
+  },
+  {
+    "timestamp": "2025-12-03T20:22:35.036Z",
+    "tokens_used": 1853,
+    "estimated_cost": 0,
+    "month": "2025-12",
+    "type": "reserved-page-generation"
+  },
+  {
+    "timestamp": "2025-12-03T20:23:31.311Z",
+    "tokens_used": 1605,
+    "estimated_cost": 0,
+    "month": "2025-12",
+    "type": "reserved-page-generation"
+  },
+  {
+    "timestamp": "2025-12-03T20:24:23.997Z",
+    "tokens_used": 2373,
+    "estimated_cost": 0,
+    "month": "2025-12",
+    "type": "reserved-page-generation"
+  },
+  {
+    "timestamp": "2025-12-03T20:25:31.143Z",
+    "tokens_used": 2949,
+    "estimated_cost": 0,
+    "month": "2025-12",
+    "type": "reserved-page-generation"
+  },
+  {
+    "timestamp": "2025-12-03T20:31:50.112Z",
+    "tokens_used": 2551,
+    "estimated_cost": 0,
+    "month": "2025-12",
+    "type": "reserved-page-generation"
+  }
+]

@@ -1,0 +1,257 @@
+{
+  "reserved_components": {
+    "subscriber_sidebar": {
+      "name": "Subscriber Navigation Sidebar",
+      "type": "layout_component",
+      "protection_level": "high",
+      "description": "Left sidebar navigation for authenticated subscribers",
+      "required_elements": {
+        "container": {
+          "classes": ["subscriber-sidebar", "w-64", "min-h-screen", "bg-indigo-800", "text-white"],
+          "role": "navigation",
+          "protected": true
+        },
+        "brand_section": {
+          "required": true,
+          "content": "Subscriber Portal branding and user welcome",
+          "protected": true
+        },
+        "navigation_links": {
+          "required": ["dashboard", "profile", "upgrade", "home"],
+          "routes": {
+            "dashboard": "/dashboard",
+            "profile": "/dashboard/profile", 
+            "upgrade": "/dashboard/upgrade",
+            "home": "/"
+          },
+          "protected": true
+        },
+        "logout_button": {
+          "required": true,
+          "function": "handleLogout",
+          "protected": true
+        }
+      },
+      "customizable_aspects": {
+        "styling": ["colors", "fonts", "spacing", "hover_effects"],
+        "content": ["brand_text", "user_greeting"],
+        "not_customizable": ["navigation_structure", "core_functionality", "routes"]
+      }
+    },
+    "support_chat_widget": {
+      "name": "Admin Support Chat Widget",
+      "type": "communication_component", 
+      "protection_level": "maximum",
+      "description": "Floating chat widget for customer-admin communication",
+      "required_elements": {
+        "chat_button": {
+          "position": "fixed bottom-6 right-6",
+          "protected": true,
+          "unread_indicator": "required"
+        },
+        "chat_panel": {
+          "size": "w-96 h-[600px]",
+          "sections": ["header", "messages", "input"],
+          "protected": true
+        },
+        "message_functionality": {
+          "send_message": "required",
+          "fetch_messages": "required", 
+          "mark_read": "required",
+          "real_time_polling": "required"
+        }
+      },
+      "api_endpoints": {
+        "send": "/api/support/messages",
+        "fetch": "/api/support/messages",
+        "mark_read": "/api/support/messages/read"
+      },
+      "customizable_aspects": {
+        "styling": ["colors", "chat_bubble_style", "animations"],
+        "content": ["welcome_text", "placeholder_text"],
+        "not_customizable": ["core_functionality", "API_integration", "positioning_system"]
+      }
+    },
+    "task_management_component": {
+      "name": "Task Management System",
+      "type": "feature_component",
+      "protection_level": "high",
+      "description": "Task creation and management for dashboard",
+      "required_elements": {
+        "task_table": {
+          "columns": ["id", "title", "status", "created_at", "actions"],
+          "sorting": "required",
+          "filtering": "optional",
+          "protected": true
+        },
+        "create_task_modal": {
+          "fields": ["title", "description", "priority"],
+          "validation": "required",
+          "protected": true
+        },
+        "task_actions": {
+          "create": "required",
+          "edit": "required", 
+          "delete": "required",
+          "status_update": "required"
+        }
+      },
+      "api_endpoints": {
+        "list": "/api/tasks",
+        "create": "/api/tasks",
+        "update": "/api/tasks/[id]",
+        "delete": "/api/tasks/[id]"
+      },
+      "customizable_aspects": {
+        "styling": ["table_design", "modal_styling", "button_colors"],
+        "content": ["column_labels", "form_labels"],
+        "not_customizable": ["table_functionality", "CRUD_operations", "data_structure"]
+      }
+    },
+    "settings_component": {
+      "name": "User Settings Management",
+      "type": "feature_component", 
+      "protection_level": "high",
+      "description": "User profile and account settings",
+      "required_elements": {
+        "profile_section": {
+          "fields": ["username", "email", "plan_info"],
+          "readonly_fields": ["email", "plan_info"],
+          "protected": true
+        },
+        "preferences_section": {
+          "fields": ["notifications", "theme", "language"],
+          "optional": true
+        },
+        "security_section": {
+          "fields": ["change_password", "two_factor"],
+          "protected": true
+        }
+      },
+      "api_endpoints": {
+        "get_profile": "/api/subscribe/me",
+        "update_profile": "/api/subscribe/update-profile",
+        "change_password": "/api/auth/change-password"
+      },
+      "customizable_aspects": {
+        "styling": ["form_layout", "section_styling", "input_design"],
+        "content": ["section_titles", "help_text"],
+        "not_customizable": ["security_functionality", "profile_validation", "API_integration"]
+      }
+    }
+  },
+  "layout_system": {
+    "subscriber_layout": {
+      "name": "Main Subscriber Layout",
+      "structure": {
+        "container": "min-h-screen bg-gray-100",
+        "flex_wrapper": "flex",
+        "sidebar": "w-64 min-h-screen (reserved_component: subscriber_sidebar)",
+        "main_content": "flex-1 p-8 (customizable content area)",
+        "support_widget": "fixed position (reserved_component: support_chat_widget)"
+      },
+      "protection_rules": {
+        "cannot_remove": ["sidebar", "support_widget", "authentication_check"],
+        "cannot_modify": ["layout_structure", "responsive_breakpoints", "core_positioning"],
+        "can_customize": ["main_content_styling", "background_colors", "content_spacing"]
+      },
+      "responsive_behavior": {
+        "mobile": "sidebar_collapse_to_overlay",
+        "tablet": "sidebar_reduced_width", 
+        "desktop": "full_layout",
+        "protected": true
+      }
+    },
+    "content_areas": {
+      "dashboard_content": {
+        "allowed_components": ["task_management", "metrics_display", "quick_actions", "recent_activity"],
+        "required_components": ["welcome_section", "plan_info"],
+        "customization_level": "high"
+      },
+      "profile_content": {
+        "allowed_components": ["settings_component", "profile_forms", "security_settings"],
+        "required_components": ["profile_section"],
+        "customization_level": "medium"
+      },
+      "billing_content": {
+        "allowed_components": ["plan_display", "upgrade_options", "billing_history"],
+        "required_components": ["current_plan", "upgrade_buttons"],
+        "customization_level": "medium"
+      }
+    }
+  },
+  "minimal_functionality_requirements": {
+    "authentication": {
+      "description": "User authentication and session management",
+      "components": ["login_check", "session_validation", "logout_functionality"],
+      "protection_level": "maximum",
+      "cannot_be_removed": true,
+      "cannot_be_modified": true
+    },
+    "navigation": {
+      "description": "Core navigation between dashboard sections",
+      "components": ["sidebar_navigation", "route_handling", "active_link_indication"],
+      "protection_level": "high",
+      "required_routes": ["/dashboard", "/dashboard/profile", "/dashboard/upgrade"],
+      "cannot_be_removed": true
+    },
+    "support_communication": {
+      "description": "Customer-admin communication system",
+      "components": ["support_widget", "message_functionality", "real_time_updates"],
+      "protection_level": "maximum",
+      "cannot_be_removed": true,
+      "cannot_be_modified": true
+    },
+    "subscription_management": {
+      "description": "Plan and billing management",
+      "components": ["plan_display", "upgrade_functionality", "billing_integration"],
+      "protection_level": "high",
+      "required_on": ["dashboard", "billing_pages"]
+    },
+    "task_management": {
+      "description": "Task creation and management for subscribers",
+      "components": ["task_table", "create_modal", "CRUD_operations"],
+      "protection_level": "high",
+      "required_on": ["dashboard"]
+    }
+  },
+  "admin_restrictions": {
+    "cannot_edit": {
+      "layout_structure": "Overall page layout and component positioning",
+      "core_functionality": "Authentication, navigation, API integrations",
+      "component_apis": "How components communicate with backend",
+      "routing_system": "URL structure and navigation logic",
+      "security_features": "Authentication checks, session management"
+    },
+    "can_edit": {
+      "styling": "Colors, fonts, spacing, visual design",
+      "content": "Text content, labels, help text",
+      "component_styling": "Individual component appearance",
+      "custom_sections": "Additional content areas within allowed zones"
+    },
+    "limited_edit": {
+      "component_configuration": "Some component settings within allowed parameters",
+      "content_organization": "Order of sections within customizable areas",
+      "optional_features": "Enable/disable non-critical features"
+    }
+  },
+  "integration_points": {
+    "layout_to_components": {
+      "description": "How layout wraps and positions components",
+      "sidebar_integration": "Sidebar automatically included in subscriber pages",
+      "chat_integration": "Support widget available on all subscriber pages", 
+      "content_injection": "Main content area populated by page-specific components"
+    },
+    "component_communication": {
+      "auth_flow": "All components check authentication status",
+      "user_data": "User info shared across components via layout",
+      "route_awareness": "Components aware of current page/route",
+      "api_sharing": "Common API patterns across components"
+    },
+    "customization_boundaries": {
+      "style_inheritance": "Components inherit theme from layout",
+      "content_slots": "Designated areas where custom content can be added",
+      "function_hooks": "Safe extension points for additional functionality"
+    }
+  }
+}

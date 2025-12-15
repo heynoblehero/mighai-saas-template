@@ -1,0 +1,440 @@
+{
+  "routes": {
+    "public": [
+      "/",
+      "/login", 
+      "/subscribe/login",
+      "/subscribe/signup",
+      "/contact"
+    ],
+    "subscriber": [
+      "/dashboard",
+      "/dashboard/profile", 
+      "/dashboard/upgrade"
+    ],
+    "admin": [
+      "/admin",
+      "/admin/login",
+      "/admin/dashboard",
+      "/admin/users",
+      "/admin/settings",
+      "/admin/reserved-pages",
+      "/admin/reserved-pages/customer-login",
+      "/admin/reserved-pages/customer-dashboard",
+      "/admin/reserved-pages/customer-profile",
+      "/admin/reserved-pages/customer-billing"
+    ],
+    "route_mappings": {
+      "profile": "/dashboard/profile",
+      "settings": "/dashboard/profile",
+      "billing": "/dashboard/upgrade",
+      "upgrade": "/dashboard/upgrade",
+      "dashboard": "/dashboard",
+      "home": "/",
+      "login": "/subscribe/login",
+      "signup": "/subscribe/signup"
+    }
+  },
+  "api_endpoints": {
+    "authentication": {
+      "/api/subscribe/login": {
+        "method": "POST",
+        "required_fields": ["email", "password"],
+        "success_redirect": "/dashboard",
+        "returns": "user object and auth token"
+      },
+      "/api/subscribe/me": {
+        "method": "GET", 
+        "auth_required": true,
+        "returns": "current user info with subscription details"
+      },
+      "/api/auth/logout": {
+        "method": "POST",
+        "auth_required": true,
+        "success_redirect": "/login"
+      },
+      "/api/auth/reset-password": {
+        "method": "POST",
+        "required_fields": ["email"],
+        "returns": "password reset email sent confirmation"
+      }
+    },
+    "signup": {
+      "/api/subscribe/send-signup-otp": {
+        "method": "POST",
+        "required_fields": ["username", "email", "password"],
+        "returns": "OTP sent confirmation"
+      },
+      "/api/subscribe/verify-signup-otp": {
+        "method": "POST", 
+        "required_fields": ["username", "email", "password", "otp"],
+        "success_redirect": "/subscribe/login?message=Account created successfully"
+      },
+      "/api/subscribe/resend-signup-otp": {
+        "method": "POST",
+        "required_fields": ["email"],
+        "returns": "OTP resent confirmation"
+      }
+    },
+    "subscription": {
+      "/api/plans/public": {
+        "method": "GET",
+        "returns": "available subscription plans"
+      },
+      "/api/create-checkout-session": {
+        "method": "POST",
+        "auth_required": true,
+        "required_fields": ["plan_id"],
+        "returns": "Lemon Squeezy checkout URL"
+      }
+    },
+    "profile": {
+      "/api/subscribe/update-profile": {
+        "method": "POST",
+        "auth_required": true,
+        "required_fields": ["username", "email"],
+        "returns": "updated user profile"
+      }
+    },
+    "tasks": {
+      "/api/tasks": {
+        "method": "GET",
+        "auth_required": true,
+        "returns": "list of user tasks"
+      },
+      "/api/tasks": {
+        "method": "POST",
+        "auth_required": true,
+        "required_fields": ["title", "description"],
+        "optional_fields": ["priority", "status"],
+        "returns": "created task object"
+      },
+      "/api/tasks/[id]": {
+        "method": "PUT",
+        "auth_required": true,
+        "required_fields": ["id"],
+        "optional_fields": ["title", "description", "status", "priority"],
+        "returns": "updated task object"
+      },
+      "/api/tasks/[id]": {
+        "method": "DELETE",
+        "auth_required": true,
+        "required_fields": ["id"],
+        "returns": "deletion confirmation"
+      }
+    }
+  },
+  "layout_component_functions": {
+    "customer-layout-sidebar": {
+      "required_functions": [
+        {
+          "name": "handleSidebarLogout",
+          "description": "Handles user logout functionality",
+          "signature": "function handleSidebarLogout()",
+          "required": true,
+          "protection_level": "critical",
+          "ai_instruction": "NEVER remove or rename this function. It must be called exactly 'handleSidebarLogout' and available globally."
+        },
+        {
+          "name": "updateActiveNav", 
+          "description": "Updates active navigation based on current page",
+          "signature": "function updateActiveNav()",
+          "required": true,
+          "protection_level": "high",
+          "ai_instruction": "This function is required for navigation highlighting. Keep function name exact."
+        }
+      ],
+      "required_elements": [
+        {
+          "onclick": "handleSidebarLogout()",
+          "description": "Logout button must call handleSidebarLogout()",
+          "protection_level": "critical"
+        }
+      ]
+    },
+    "customer-layout-chat": {
+      "required_functions": [
+        {
+          "name": "toggleChat",
+          "description": "Toggles chat window open/close",
+          "signature": "function toggleChat()",
+          "required": true,
+          "protection_level": "critical",
+          "ai_instruction": "NEVER remove or rename this function. It must be called exactly 'toggleChat' and available globally."
+        },
+        {
+          "name": "sendMessage",
+          "description": "Handles sending chat messages",
+          "signature": "function sendMessage(event)",
+          "required": true,
+          "protection_level": "high",
+          "ai_instruction": "Required for chat functionality. Keep function name exact and handle form submission."
+        }
+      ],
+      "required_elements": [
+        {
+          "onclick": "toggleChat()",
+          "description": "Chat toggle button must call toggleChat()",
+          "protection_level": "critical"
+        },
+        {
+          "onsubmit": "sendMessage(event)",
+          "description": "Chat form must call sendMessage(event)",
+          "protection_level": "critical"
+        },
+        {
+          "id": "chatWindow",
+          "description": "Chat window element with this exact ID is required",
+          "protection_level": "high"
+        },
+        {
+          "id": "messageInput",
+          "description": "Message input field with this exact ID is required",
+          "protection_level": "high"
+        }
+      ]
+    }
+  },
+  "required_functions": {
+    "customer-login": {
+      "handleSubmit": {
+        "description": "Handle login form submission with validation and API call",
+        "parameters": ["email", "password"],
+        "api_call": "/api/subscribe/login",
+        "error_handling": "Display error messages in UI",
+        "loading_state": "Show spinner and disable form"
+      },
+      "loading_state": {
+        "description": "Toggle loading indicators during API calls",
+        "parameters": ["isLoading"]
+      },
+      "error_display": {
+        "description": "Show/hide error messages", 
+        "parameters": ["message", "elementId"]
+      }
+    },
+    "password-reset": {
+      "handleSubmit": {
+        "description": "Handle password reset request",
+        "parameters": ["email"],
+        "api_call": "/api/auth/reset-password",
+        "success_message": "Password reset email sent",
+        "validation": "email format"
+      },
+      "validateEmail": {
+        "description": "Validate email format before submission",
+        "parameters": ["email"]
+      }
+    },
+    "customer-dashboard": {
+      "navigation": {
+        "description": "Navigate to dashboard sub-pages with route mapping",
+        "parameters": ["page"],
+        "route_mapping": {
+          "profile": "/dashboard/profile",
+          "settings": "/dashboard/profile",
+          "billing": "/dashboard/upgrade", 
+          "upgrade": "/dashboard/upgrade"
+        }
+      },
+      "fetchUserInfo": {
+        "description": "Fetch and populate user data from API",
+        "api_call": "/api/subscribe/me",
+        "populates": ["#userName", "#userEmail", "#planDetails"]
+      },
+      "fetchUsageStats": {
+        "description": "Update progress bars with usage data",
+        "included_in": "fetchUserInfo",
+        "updates": [".progress-fill", "#apiProgress", "#pageViewProgress"]
+      },
+      "fetchTasks": {
+        "description": "Load user tasks and populate task table",
+        "api_call": "/api/tasks",
+        "populates": "#taskTable"
+      },
+      "createTask": {
+        "description": "Create new task via modal dialog",
+        "api_call": "/api/tasks",
+        "parameters": ["title", "description", "priority"],
+        "success_action": "refreshTaskTable"
+      },
+      "editTask": {
+        "description": "Edit existing task",
+        "api_call": "/api/tasks/[id]",
+        "parameters": ["id", "title", "description", "status", "priority"],
+        "success_action": "refreshTaskTable"
+      },
+      "deleteTask": {
+        "description": "Delete task with confirmation",
+        "api_call": "/api/tasks/[id]",
+        "parameters": ["id"],
+        "confirmation": true,
+        "success_action": "refreshTaskTable"
+      },
+      "openTaskModal": {
+        "description": "Open modal dialog for task creation/editing",
+        "parameters": ["mode", "taskData"]
+      }
+    },
+    "customer-signup": {
+      "handleSubmit": {
+        "description": "Handle signup form submission and trigger OTP",
+        "parameters": ["username", "email", "password"],
+        "api_call": "/api/subscribe/send-signup-otp",
+        "success_action": "showOTPStep"
+      },
+      "handleOTPSubmit": {
+        "description": "Verify OTP and complete registration",
+        "parameters": ["username", "email", "password", "otp"],
+        "api_call": "/api/subscribe/verify-signup-otp"
+      },
+      "showOTPStep": {
+        "description": "Switch UI from signup form to OTP verification",
+        "parameters": ["email"]
+      },
+      "resendOTP": {
+        "description": "Request new OTP code",
+        "api_call": "/api/subscribe/resend-signup-otp"
+      }
+    },
+    "customer-profile": {
+      "fetchUserInfo": {
+        "description": "Load current profile data into form",
+        "api_call": "/api/subscribe/me",
+        "populates_form": true
+      },
+      "handleSubmit": {
+        "description": "Update user profile",
+        "api_call": "/api/subscribe/update-profile",
+        "required_fields": ["username", "email"]
+      }
+    },
+    "customer-billing": {
+      "fetchPlans": {
+        "description": "Load available subscription plans",
+        "api_call": "/api/plans/public"
+      },
+      "fetchUserInfo": {
+        "description": "Load current subscription details",
+        "api_call": "/api/subscribe/me"
+      },
+      "handleUpgrade": {
+        "description": "Process plan upgrade via Lemon Squeezy checkout",
+        "api_call": "/api/create-checkout-session",
+        "parameters": ["plan_id"],
+        "success_action": "redirect to Lemon Squeezy"
+      }
+    }
+  },
+  "styling_patterns": {
+    "form_validation": {
+      "error_display": "Red border on invalid fields, error message below",
+      "success_state": "Green border and checkmark icon",
+      "loading_state": "Disabled form with spinner"
+    },
+    "navigation": {
+      "button_style": "Consistent button styling across pages",
+      "hover_effects": "Subtle hover animations",
+      "active_states": "Clear indication of current page"
+    },
+    "responsive": {
+      "breakpoints": ["mobile: 480px", "tablet: 768px", "desktop: 1024px"],
+      "layout": "Stack on mobile, grid on desktop"
+    }
+  },
+  "common_utilities": {
+    "showError": "Display error messages with consistent styling",
+    "showSuccess": "Display success messages with consistent styling", 
+    "setLoading": "Toggle loading states on buttons and forms",
+    "clearMessages": "Remove all error/success messages",
+    "validateEmail": "Client-side email format validation",
+    "validatePassword": "Client-side password strength validation",
+    "formatCurrency": "Format price values as currency",
+    "debounce": "Debounce function calls to prevent spam",
+    "copyToClipboard": "Copy text to clipboard with feedback",
+    "formatDate": "Format dates consistently across pages",
+    "sanitizeInput": "Basic input sanitization for XSS prevention"
+  },
+  "page_relationships": {
+    "customer-login": {
+      "links_to": ["/subscribe/signup", "/dashboard", "/"],
+      "redirects_from": ["/dashboard", "/dashboard/profile", "/dashboard/upgrade"]
+    },
+    "customer-signup": {
+      "links_to": ["/subscribe/login", "/"],
+      "next_step": "/subscribe/login"
+    },
+    "customer-dashboard": {
+      "requires_auth": true,
+      "navigation_targets": ["/dashboard/profile", "/dashboard/upgrade"],
+      "fallback_redirect": "/subscribe/login"
+    },
+    "customer-profile": {
+      "requires_auth": true,
+      "parent": "/dashboard",
+      "fallback_redirect": "/subscribe/login"
+    },
+    "customer-billing": {
+      "requires_auth": true,
+      "parent": "/dashboard", 
+      "external_integration": "Lemon Squeezy checkout",
+      "fallback_redirect": "/subscribe/login"
+    }
+  },
+  "error_prevention": {
+    "function_definition": {
+      "rule": "Always define functions before using them in onclick handlers",
+      "pattern": "Define functions in global scope or ensure accessibility",
+      "example": "window.functionName = function() { ... }"
+    },
+    "api_validation": {
+      "rule": "Only use verified API endpoints from the context",
+      "validation": "Check method, required fields, and expected responses",
+      "error_handling": "Always include try-catch blocks for API calls"
+    },
+    "route_mapping": {
+      "rule": "Use exact route mappings, never hardcode paths",
+      "validation": "Check routes object before navigation",
+      "fallback": "Provide error message for invalid routes"
+    },
+    "element_targeting": {
+      "rule": "Use exact element IDs from required_elements",
+      "validation": "Check element existence before manipulation",
+      "fallback": "Console warning if element not found"
+    }
+  },
+  "code_patterns": {
+    "async_function": {
+      "template": "async function name() { try { ... } catch (error) { showError(error.message); } }",
+      "loading_state": "Always toggle loading before/after API calls",
+      "error_display": "Show user-friendly error messages"
+    },
+    "form_submission": {
+      "template": "preventDefault, validate, show loading, call API, handle response",
+      "validation": "Client-side validation before API call",
+      "success_handling": "Clear form or redirect on success"
+    },
+    "navigation": {
+      "template": "Check route mapping, validate destination, navigate with error handling",
+      "validation": "Ensure route exists before navigation",
+      "fallback": "Show error for invalid navigation targets"
+    }
+  },
+  "integration_points": {
+    "reserved_page_injector": {
+      "description": "Additional scripts are injected after the HTML",
+      "conflict_prevention": "Don't redefine utility functions that may be injected",
+      "cooperation": "Use common naming conventions for consistency"
+    },
+    "authentication_flow": {
+      "description": "Pages may redirect to login if authentication fails",
+      "token_handling": "Include auth tokens in requests where required",
+      "session_management": "Handle session expiration gracefully"
+    },
+    "lemonsqueezy_integration": {
+      "description": "Billing pages redirect to external Lemon Squeezy checkout",
+      "return_handling": "Handle successful/cancelled payment returns",
+      "webhook_awareness": "Subscription status updates via webhooks"
+    }
+  }
+}

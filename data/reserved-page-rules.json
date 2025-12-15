@@ -1,0 +1,859 @@
+{
+  "customer-login": {
+    "name": "Customer Login Page",
+    "description": "Customer login page with email/password authentication",
+    "required_elements": [
+      {
+        "type": "form",
+        "id": "loginForm",
+        "action": "handleSubmit",
+        "method": "prevent_default",
+        "required": true,
+        "description": "Main login form that handles authentication"
+      },
+      {
+        "type": "input",
+        "id": "email",
+        "name": "email",
+        "input_type": "email",
+        "required": true,
+        "validation": "email_format",
+        "description": "Email input field for user authentication"
+      },
+      {
+        "type": "input", 
+        "id": "password",
+        "name": "password",
+        "input_type": "password",
+        "required": true,
+        "description": "Password input field for user authentication"
+      },
+      {
+        "type": "button",
+        "id": "submitButton",
+        "button_type": "submit",
+        "required": true,
+        "description": "Submit button to trigger login process"
+      },
+      {
+        "type": "link",
+        "id": "signupLink",
+        "href": "/subscribe/signup",
+        "required": true,
+        "description": "Link to registration page for new users"
+      },
+      {
+        "type": "link",
+        "id": "homeLink", 
+        "href": "/",
+        "required": false,
+        "description": "Link back to home page"
+      }
+    ],
+    "required_functionality": [
+      {
+        "name": "handleSubmit",
+        "description": "Handle login form submission",
+        "api_endpoint": "/api/subscribe/login",
+        "method": "POST",
+        "required_fields": ["email", "password"],
+        "success_redirect": "/dashboard",
+        "error_handling": "display_error_message"
+      },
+      {
+        "name": "loading_state",
+        "description": "Show loading indicator during authentication",
+        "required": true
+      },
+      {
+        "name": "error_display",
+        "description": "Display error messages from API responses",
+        "required": true
+      }
+    ],
+    "styling_guidelines": [
+      "Responsive design for mobile and desktop",
+      "Form validation indicators",
+      "Loading states for buttons",
+      "Error message styling",
+      "Professional and trustworthy appearance"
+    ]
+  },
+  "customer-signup": {
+    "name": "Customer Signup Page",
+    "description": "Customer registration page with OTP verification",
+    "required_elements": [
+      {
+        "type": "form",
+        "id": "signupForm",
+        "action": "handleSubmit",
+        "method": "prevent_default",
+        "required": true,
+        "description": "Main signup form"
+      },
+      {
+        "type": "input",
+        "id": "username",
+        "name": "username",
+        "input_type": "text",
+        "required": true,
+        "description": "Username input field"
+      },
+      {
+        "type": "input",
+        "id": "email",
+        "name": "email", 
+        "input_type": "email",
+        "required": true,
+        "validation": "email_format",
+        "description": "Email input field"
+      },
+      {
+        "type": "input",
+        "id": "password",
+        "name": "password",
+        "input_type": "password",
+        "required": true,
+        "validation": "min_length_6",
+        "description": "Password input field"
+      },
+      {
+        "type": "input",
+        "id": "confirmPassword",
+        "name": "confirmPassword",
+        "input_type": "password", 
+        "required": true,
+        "validation": "match_password",
+        "description": "Confirm password input field"
+      },
+      {
+        "type": "button",
+        "id": "submitButton",
+        "button_type": "submit",
+        "required": true,
+        "description": "Submit button for registration"
+      },
+      {
+        "type": "form",
+        "id": "otpForm",
+        "action": "handleOTPSubmit",
+        "conditional": "step_verify",
+        "required": true,
+        "description": "OTP verification form"
+      },
+      {
+        "type": "input",
+        "id": "otp",
+        "name": "otp",
+        "input_type": "text",
+        "maxlength": "6",
+        "pattern": "[0-9]{6}",
+        "conditional": "step_verify",
+        "required": true,
+        "description": "OTP verification input"
+      },
+      {
+        "type": "link",
+        "id": "loginLink",
+        "href": "/subscribe/login",
+        "required": true,
+        "description": "Link to login page"
+      }
+    ],
+    "required_functionality": [
+      {
+        "name": "handleSubmit",
+        "description": "Handle signup form submission and OTP sending",
+        "api_endpoint": "/api/subscribe/send-signup-otp",
+        "method": "POST",
+        "required_fields": ["username", "email", "password"],
+        "success_action": "show_otp_step"
+      },
+      {
+        "name": "handleOTPSubmit",
+        "description": "Handle OTP verification",
+        "api_endpoint": "/api/subscribe/verify-signup-otp", 
+        "method": "POST",
+        "required_fields": ["username", "email", "password", "otp"],
+        "success_redirect": "/subscribe/login?message=Account created successfully"
+      },
+      {
+        "name": "resendOTP",
+        "description": "Resend OTP verification code",
+        "api_endpoint": "/api/subscribe/resend-signup-otp",
+        "method": "POST",
+        "required_fields": ["email"]
+      },
+      {
+        "name": "step_management",
+        "description": "Manage signup/verify steps",
+        "required": true
+      }
+    ]
+  },
+  "customer-dashboard": {
+    "name": "Customer Dashboard",
+    "description": "Main dashboard content area for authenticated customers with task management",
+    "layout_type": "customer_layout",
+    "content_area": "dashboard_content",
+    "required_elements": [
+      {
+        "type": "component",
+        "id": "welcomeSection",
+        "required": true,
+        "description": "Welcome section showing user information",
+        "protection_level": "high"
+      },
+      {
+        "type": "component", 
+        "id": "planInfo",
+        "required": true,
+        "description": "Current subscription plan information",
+        "protection_level": "high"
+      },
+      {
+        "type": "component",
+        "id": "taskManagement",
+        "required": true,
+        "description": "Task table with create/edit/delete functionality",
+        "protection_level": "high",
+        "minimal_functionality": "task_management"
+      },
+      {
+        "type": "component",
+        "id": "usageMetrics",
+        "required": true,
+        "description": "API usage and page view metrics with progress bars"
+      },
+      {
+        "type": "component",
+        "id": "quickActions",
+        "required": true,
+        "description": "Quick action buttons (profile, settings, etc.)"
+      },
+      {
+        "type": "component",
+        "id": "recentActivity",
+        "required": false,
+        "description": "Recent tasks or activity history"
+      }
+    ],
+    "required_functionality": [
+      {
+        "name": "fetchUserInfo",
+        "description": "Fetch current user information and subscription details",
+        "api_endpoint": "/api/subscribe/me",
+        "method": "GET",
+        "required": true
+      },
+      {
+        "name": "fetchUsageStats",
+        "description": "Fetch API usage and limits",
+        "included_in": "fetchUserInfo",
+        "required": true
+      },
+      {
+        "name": "navigation",
+        "description": "Navigation to profile, billing, and other pages using correct route mapping",
+        "required": true,
+        "route_mapping": {
+          "profile": "/dashboard/profile",
+          "settings": "/dashboard/profile", 
+          "billing": "/dashboard/upgrade",
+          "upgrade": "/dashboard/upgrade"
+        }
+      }
+    ]
+  },
+  "customer-profile": {
+    "name": "Customer Profile Page", 
+    "description": "Profile management and user information editing content area",
+    "layout_type": "customer_layout",
+    "content_area": "profile_content",
+    "required_elements": [
+      {
+        "type": "form",
+        "id": "profileForm",
+        "action": "handleSubmit",
+        "required": true,
+        "description": "Profile update form"
+      },
+      {
+        "type": "input",
+        "id": "username",
+        "name": "username",
+        "input_type": "text",
+        "required": true,
+        "description": "Username input field"
+      },
+      {
+        "type": "input",
+        "id": "email",
+        "name": "email",
+        "input_type": "email",
+        "required": true,
+        "description": "Email input field"
+      },
+      {
+        "type": "display",
+        "id": "accountType",
+        "content": "user_role",
+        "required": true,
+        "description": "Display current account type/role"
+      },
+      {
+        "type": "button",
+        "id": "saveButton",
+        "button_type": "submit",
+        "required": true,
+        "description": "Save profile changes button"
+      },
+      {
+        "type": "link",
+        "id": "dashboardLink",
+        "href": "/dashboard",
+        "required": true,
+        "description": "Link back to dashboard"
+      }
+    ],
+    "required_functionality": [
+      {
+        "name": "fetchUserInfo",
+        "description": "Load current user profile information",
+        "api_endpoint": "/api/subscribe/me",
+        "method": "GET",
+        "required": true
+      },
+      {
+        "name": "handleSubmit",
+        "description": "Update user profile information",
+        "api_endpoint": "/api/subscribe/update-profile",
+        "method": "POST",
+        "required_fields": ["username", "email"]
+      }
+    ]
+  },
+  "customer-billing": {
+    "name": "Billing & Upgrade Page",
+    "description": "Subscription management and upgrade options content area",
+    "layout_type": "customer_layout", 
+    "content_area": "billing_content",
+    "required_elements": [
+      {
+        "type": "component",
+        "id": "currentPlan",
+        "required": true,
+        "description": "Current subscription plan display"
+      },
+      {
+        "type": "component",
+        "id": "usageSummary", 
+        "required": true,
+        "description": "Current usage statistics and limits"
+      },
+      {
+        "type": "component",
+        "id": "availablePlans",
+        "required": true,
+        "description": "Grid of available upgrade plans"
+      },
+      {
+        "type": "button",
+        "id": "upgradeButtons",
+        "action": "handleUpgrade",
+        "required": true,
+        "description": "Upgrade buttons for each plan"
+      },
+      {
+        "type": "component",
+        "id": "billingInfo",
+        "required": true,
+        "description": "Billing information and policies"
+      }
+    ],
+    "required_functionality": [
+      {
+        "name": "fetchPlans",
+        "description": "Fetch available subscription plans",
+        "api_endpoint": "/api/plans/public",
+        "method": "GET",
+        "required": true
+      },
+      {
+        "name": "fetchUserInfo",
+        "description": "Fetch current user subscription info",
+        "api_endpoint": "/api/subscribe/me", 
+        "method": "GET",
+        "required": true
+      },
+      {
+        "name": "handleUpgrade",
+        "description": "Process plan upgrade via Lemon Squeezy",
+        "api_endpoint": "/api/create-checkout-session",
+        "method": "POST",
+        "required_fields": ["plan_id"],
+        "success_action": "redirect_to_lemonsqueezy"
+      }
+    ]
+  },
+  "password-reset": {
+    "name": "Password Reset Page",
+    "description": "Password reset functionality for customers",
+    "required_elements": [
+      {
+        "type": "form",
+        "id": "resetForm",
+        "action": "handleSubmit",
+        "required": true,
+        "description": "Password reset request form"
+      },
+      {
+        "type": "input",
+        "id": "email",
+        "name": "email",
+        "input_type": "email",
+        "required": true,
+        "description": "Email input for password reset"
+      },
+      {
+        "type": "button",
+        "id": "submitButton",
+        "button_type": "submit", 
+        "required": true,
+        "description": "Send reset email button"
+      },
+      {
+        "type": "link",
+        "id": "loginLink",
+        "href": "/subscribe/login",
+        "required": true,
+        "description": "Back to login link"
+      }
+    ],
+    "required_functionality": [
+      {
+        "name": "handleSubmit",
+        "description": "Send password reset email",
+        "api_endpoint": "/api/auth/reset-password",
+        "method": "POST",
+        "required_fields": ["email"],
+        "success_message": "Password reset email sent"
+      }
+    ]
+  },
+  "customer-layout-sidebar": {
+    "name": "Customer Layout - Sidebar",
+    "description": "Editable sidebar component for customer layout with navigation",
+    "component_type": "layout_component",
+    "editable": true,
+    "required_elements": [
+      {
+        "type": "component",
+        "id": "sidebarHeader",
+        "required": true,
+        "description": "Sidebar header with branding and user welcome",
+        "protection_level": "medium"
+      },
+      {
+        "type": "nav",
+        "id": "sidebarNav",
+        "required": true,
+        "description": "Navigation menu with customer portal links",
+        "protection_level": "low"
+      },
+      {
+        "type": "button",
+        "id": "logoutBtn",
+        "action": "handleLogout",
+        "required": true,
+        "description": "Logout button",
+        "protection_level": "high"
+      }
+    ],
+    "required_functionality": [
+      {
+        "name": "handleSidebarLogout",
+        "description": "Handle user logout - CRITICAL: Function name must be exactly 'handleSidebarLogout'",
+        "api_endpoint": "/api/auth/logout",
+        "method": "POST",
+        "required": true,
+        "protection_level": "critical",
+        "function_signature": "function handleSidebarLogout()",
+        "ai_instruction": "NEVER rename this function. It must be called exactly 'handleSidebarLogout' and available globally."
+      },
+      {
+        "name": "updateActiveNav",
+        "description": "Update active navigation based on current page",
+        "required": true,
+        "protection_level": "high",
+        "function_signature": "function updateActiveNav()",
+        "ai_instruction": "Required for navigation highlighting. Keep function name exact."
+      },
+      {
+        "name": "loadUserInfo",
+        "description": "Load user information for sidebar display",
+        "api_endpoint": "/api/subscribe/me",
+        "method": "GET",
+        "required": true
+      }
+    ],
+    "editing_rules": {
+      "canEditNavigation": true,
+      "canEditStyling": true,
+      "canAddMenuItems": true,
+      "canEditBranding": true,
+      "protectedElements": ["logout-btn"]
+    }
+  },
+  "customer-layout-chat": {
+    "name": "Customer Layout - Chat",
+    "description": "Editable chat widget component for customer support",
+    "component_type": "layout_component",
+    "editable": true,
+    "required_elements": [
+      {
+        "type": "button",
+        "id": "chatToggle",
+        "action": "toggleChat",
+        "required": true,
+        "description": "Chat toggle button with unread badge",
+        "protection_level": "high"
+      },
+      {
+        "type": "component",
+        "id": "chatWindow",
+        "required": true,
+        "description": "Chat window with messages and input",
+        "protection_level": "high"
+      },
+      {
+        "type": "component",
+        "id": "chatMessages",
+        "required": true,
+        "description": "Chat messages container",
+        "protection_level": "medium"
+      },
+      {
+        "type": "form",
+        "id": "chatForm",
+        "action": "sendMessage",
+        "required": true,
+        "description": "Chat input form",
+        "protection_level": "medium"
+      },
+      {
+        "type": "component",
+        "id": "quickActions",
+        "required": false,
+        "description": "Quick action buttons for common queries",
+        "protection_level": "low"
+      }
+    ],
+    "required_functionality": [
+      {
+        "name": "toggleChat",
+        "description": "Toggle chat window open/close - CRITICAL: Function name must be exactly 'toggleChat'",
+        "required": true,
+        "protection_level": "critical",
+        "function_signature": "function toggleChat()",
+        "ai_instruction": "NEVER rename this function. It must be called exactly 'toggleChat' and available globally.",
+        "required_elements": ["chatWindow", "chatToggle"]
+      },
+      {
+        "name": "sendMessage",
+        "description": "Send chat message to support - CRITICAL: Function name must be exactly 'sendMessage'",
+        "api_endpoint": "/api/support/messages",
+        "method": "POST",
+        "required_fields": ["message"],
+        "required": true,
+        "protection_level": "critical",
+        "function_signature": "function sendMessage(event)",
+        "ai_instruction": "NEVER rename this function. It must be called exactly 'sendMessage' and handle form submission.",
+        "required_elements": ["messageInput"]
+      },
+      {
+        "name": "loadChatHistory",
+        "description": "Load previous chat messages",
+        "api_endpoint": "/api/support/messages",
+        "method": "GET",
+        "required": true
+      },
+      {
+        "name": "checkUnreadMessages",
+        "description": "Check for unread support messages",
+        "api_endpoint": "/api/support/messages/unread",
+        "method": "GET",
+        "required": true
+      },
+      {
+        "name": "markMessagesAsRead",
+        "description": "Mark messages as read",
+        "api_endpoint": "/api/support/messages/read",
+        "method": "PUT",
+        "required": true
+      }
+    ],
+    "editing_rules": {
+      "canEditMessages": true,
+      "canEditStyling": true,
+      "canEditQuickActions": true,
+      "canEditBehavior": true,
+      "protectedElements": ["chat-toggle", "chat-window"]
+    }
+  },
+  "customer-connections": {
+    "name": "OAuth Connections Page",
+    "description": "OAuth account connections management for subscribers",
+    "layout_type": "customer_layout",
+    "content_area": "connections_content",
+    "required_elements": [
+      {
+        "type": "component",
+        "id": "connectionsHeader",
+        "required": true,
+        "description": "Page header with title and description",
+        "protection_level": "medium"
+      },
+      {
+        "type": "component",
+        "id": "connectedAccountsList",
+        "required": true,
+        "description": "Grid of connected OAuth accounts",
+        "protection_level": "high"
+      },
+      {
+        "type": "component",
+        "id": "availableServicesList",
+        "required": true,
+        "description": "Grid of available OAuth services to connect",
+        "protection_level": "high"
+      },
+      {
+        "type": "button",
+        "id": "connectButtons",
+        "action": "handleConnect",
+        "required": true,
+        "description": "Connect account buttons for each service",
+        "protection_level": "high"
+      },
+      {
+        "type": "button", 
+        "id": "disconnectButtons",
+        "action": "handleDisconnect",
+        "required": true,
+        "description": "Disconnect account buttons",
+        "protection_level": "high"
+      }
+    ],
+    "required_functionality": [
+      {
+        "name": "fetchConnections",
+        "description": "Fetch user's OAuth connections",
+        "api_endpoint": "/api/oauth-connections",
+        "method": "GET",
+        "required": true
+      },
+      {
+        "name": "fetchAvailableServices",
+        "description": "Fetch available OAuth services",
+        "api_endpoint": "/api/oauth-services/available",
+        "method": "GET", 
+        "required": true
+      },
+      {
+        "name": "handleConnect",
+        "description": "Initiate OAuth connection flow",
+        "api_endpoint": "/api/oauth/auth/[service_id]",
+        "method": "GET",
+        "required": true
+      },
+      {
+        "name": "handleDisconnect",
+        "description": "Remove OAuth connection",
+        "api_endpoint": "/api/oauth-connections/[connection_id]",
+        "method": "DELETE",
+        "required": true
+      },
+      {
+        "name": "handleRefreshToken",
+        "description": "Refresh expired OAuth tokens",
+        "api_endpoint": "/api/oauth/refresh/[connection_id]",
+        "method": "POST",
+        "required": true
+      }
+    ]
+  },
+  "landing-page": {
+    "name": "Landing Page",
+    "description": "Main landing page with deployment instructions and platform overview",
+    "layout_type": "public_layout",
+    "content_area": "landing_content",
+    "required_elements": [
+      {
+        "type": "component",
+        "id": "heroSection",
+        "required": true,
+        "description": "Hero section with platform title and deployment instructions",
+        "protection_level": "medium"
+      },
+      {
+        "type": "component",
+        "id": "deploymentInstructions",
+        "required": true,
+        "description": "Step-by-step deployment instructions and curl command",
+        "protection_level": "high"
+      },
+      {
+        "type": "component",
+        "id": "featuresSection",
+        "required": true,
+        "description": "Platform features and capabilities overview",
+        "protection_level": "low"
+      },
+      {
+        "type": "component",
+        "id": "getStartedSection",
+        "required": true,
+        "description": "Get started links to admin panel and customer portal",
+        "protection_level": "medium"
+      },
+      {
+        "type": "link",
+        "id": "adminLink",
+        "href": "/admin",
+        "required": true,
+        "description": "Link to admin panel"
+      },
+      {
+        "type": "link",
+        "id": "customerLink",
+        "href": "/subscribe/signup",
+        "required": true,
+        "description": "Link to customer signup"
+      }
+    ],
+    "required_functionality": [
+      {
+        "name": "copyToClipboard",
+        "description": "Copy deployment command to clipboard",
+        "required": true
+      },
+      {
+        "name": "checkSystemStatus",
+        "description": "Check if system is properly configured",
+        "api_endpoint": "/api/health",
+        "method": "GET",
+        "required": false
+      }
+    ],
+    "styling_guidelines": [
+      "Professional and modern design",
+      "Clear deployment instructions",
+      "Responsive layout",
+      "Good contrast and readability",
+      "Call-to-action buttons"
+    ]
+  },
+  "customer-ai-services": {
+    "name": "AI Services Page",
+    "description": "AI API services connection management for subscribers",
+    "layout_type": "customer_layout",
+    "content_area": "ai_services_content",
+    "required_elements": [
+      {
+        "type": "component",
+        "id": "aiServicesHeader",
+        "required": true,
+        "description": "Page header with title and description",
+        "protection_level": "medium"
+      },
+      {
+        "type": "component",
+        "id": "connectedServicesList",
+        "required": true,
+        "description": "Grid of connected AI services",
+        "protection_level": "high"
+      },
+      {
+        "type": "component",
+        "id": "availableAIServicesList",
+        "required": true,
+        "description": "Grid of available AI services to connect",
+        "protection_level": "high"
+      },
+      {
+        "type": "form",
+        "id": "apiKeyForm",
+        "action": "handleConnect",
+        "conditional": "show_connect_form",
+        "required": true,
+        "description": "API key input form for connecting services"
+      },
+      {
+        "type": "input",
+        "id": "apiKey",
+        "name": "api_key",
+        "input_type": "password",
+        "conditional": "show_connect_form",
+        "required": true,
+        "description": "API key input field",
+        "protection_level": "high"
+      },
+      {
+        "type": "button",
+        "id": "connectButtons",
+        "action": "handleConnect",
+        "required": true,
+        "description": "Connect service buttons",
+        "protection_level": "high"
+      },
+      {
+        "type": "button",
+        "id": "disconnectButtons", 
+        "action": "handleDisconnect",
+        "required": true,
+        "description": "Disconnect service buttons",
+        "protection_level": "high"
+      }
+    ],
+    "required_functionality": [
+      {
+        "name": "fetchAIConnections",
+        "description": "Fetch user's AI service connections",
+        "api_endpoint": "/api/ai-connections",
+        "method": "GET",
+        "required": true
+      },
+      {
+        "name": "fetchAvailableAIServices",
+        "description": "Fetch available AI services",
+        "api_endpoint": "/api/ai-services/available",
+        "method": "GET",
+        "required": true
+      },
+      {
+        "name": "handleConnect",
+        "description": "Connect AI service with API key",
+        "api_endpoint": "/api/ai-connections",
+        "method": "POST",
+        "required_fields": ["ai_service_id", "api_key"],
+        "required": true
+      },
+      {
+        "name": "handleDisconnect",
+        "description": "Remove AI service connection",
+        "api_endpoint": "/api/ai-connections/[connection_id]",
+        "method": "DELETE",
+        "required": true
+      },
+      {
+        "name": "handleUpdateApiKey",
+        "description": "Update API key for existing connection",
+        "api_endpoint": "/api/ai-connections/[connection_id]",
+        "method": "PUT",
+        "required_fields": ["api_key"],
+        "required": true
+      }
+    ]
+  }
+}

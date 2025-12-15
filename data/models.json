@@ -1,0 +1,68 @@
+{
+  "users": {
+    "name": "users",
+    "displayName": "Users/Customers",
+    "description": "Customer/User accounts",
+    "icon": "👤",
+    "isSystem": true,
+    "schema": {
+      "email": {
+        "type": "email",
+        "required": true,
+        "unique": true
+      },
+      "name": {
+        "type": "text",
+        "required": true
+      },
+      "password": {
+        "type": "password",
+        "required": true
+      },
+      "subscriptionTier": {
+        "type": "select",
+        "options": [
+          "free",
+          "basic",
+          "premium"
+        ],
+        "default": "free"
+      },
+      "status": {
+        "type": "select",
+        "options": [
+          "active",
+          "inactive",
+          "suspended"
+        ],
+        "default": "active"
+      },
+      "createdAt": {
+        "type": "datetime",
+        "auto": true
+      },
+      "lastLogin": {
+        "type": "datetime"
+      }
+    },
+    "timestamps": true,
+    "authentication": "required"
+  },
+  "a": {
+    "name": "a",
+    "displayName": "a",
+    "description": "",
+    "icon": "📄",
+    "isSystem": false,
+    "schema": {
+      "z": {
+        "type": "text",
+        "required": false,
+        "unique": false
+      }
+    },
+    "timestamps": true,
+    "authentication": "required",
+    "createdAt": "2025-11-11T21:21:50.153Z"
+  }
+}
