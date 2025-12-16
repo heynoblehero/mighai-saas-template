@@ -1,0 +1,80 @@
+# Dependencies
+node_modules
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Environment files
+.env*
+!.env.example
+
+# Database files
+*.db
+*.db-shm
+*.db-wal
+site_builder.db
+database.db
+
+# Build outputs
+.next
+dist
+out
+build
+
+# Logs
+*.log
+logs
+
+# Testing
+coverage
+.nyc_output
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Git
+.git
+.gitignore
+.gitattributes
+
+# CI/CD
+.github
+.gitlab-ci.yml
+
+# Documentation
+*.md
+!README.md
+
+# Temporary files
+tmp
+temp
+.tmp
+
+# Development only
+.env.local
+.env.development
+
+# User uploads (these should be volume-mounted)
+uploads
+data
+.sessions
+
+# Backup files
+*.backup
+*.bak
+
+# Page backups
+data/page-backups
+
+# Collections
+data/collections
+
+# Reserved pages
+data/reserved-pages
