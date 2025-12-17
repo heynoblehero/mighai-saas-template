@@ -175,6 +175,7 @@ export default function AdminSettings() {
           action: 'View Subscribers'
         }
       ]
+    }
   ];
 
   return (
