@@ -1,6 +1,9 @@
 import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import AdminLayout from '../../../components/AdminLayout';
+import AIKeySetupModal from '../../../components/AIKeySetupModal';
+import apiKeyStorage from '../../../utils/apiKeyStorage';
+import conversationSync from '../../../utils/conversationSync';
 
 export default function NewEnhancedPage() {
   const [mode, setMode] = useState('ai'); // 'visual', 'ai', 'code'
@@ -32,6 +35,13 @@ export default function NewEnhancedPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [savedPageSlug, setSavedPageSlug] = useState(null);
+
+  // API Key Management State
+  const [userApiKeys, setUserApiKeys] = useState(null);
+  const [selectedProvider, setSelectedProvider] = useState('claude');
+  const [showKeySetupModal, setShowKeySetupModal] = useState(false);
+  const [currentConversationId, setCurrentConversationId] = useState(null);
+
   const router = useRouter();
 
   const previewRef = useRef(null);
@@ -40,6 +50,34 @@ export default function NewEnhancedPage() {
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [chatHistory]);
+
+  // Load API keys from localStorage on mount
+  useEffect(() => {
+    const keys = apiKeyStorage.getKeys();
+    if (keys) {
+      setUserApiKeys(keys);
+      // Auto-select first configured provider
+      const preferredProvider = apiKeyStorage.getPreferredProvider();
+      if (preferredProvider) {
+        setSelectedProvider(preferredProvider);
+      } else {
+        // Fallback to first available key
+        const firstProvider = Object.keys(keys).find(k => keys[k]);
+        if (firstProvider) setSelectedProvider(firstProvider);
+      }
+    } else {
+      // No keys configured - show setup modal
+      setShowKeySetupModal(true);
+    }
+
+    // Start auto-sync for conversations
+    const syncInterval = conversationSync.startAutoSync();
+
+    // Cleanup on unmount
+    return () => {
+      conversationSync.stopAutoSync(syncInterval);
+    };
+  }, []);
 
   // Component Templates
   const componentTemplates = {
@@ -1464,6 +1502,19 @@ ${currentSections.map(s => s.css).join('\n\n')}
   const generateWithAI = async (prompt, isModification = false) => {
     if (!prompt.trim()) return;
 
+    // Check if user has API keys configured
+    if (!userApiKeys || !userApiKeys[selectedProvider]) {
+      setShowKeySetupModal(true);
+      const errorMessage = {
+        id: Date.now(),
+        type: 'error',
+        content: '⚠️ Please configure your API key to use AI features.',
+        timestamp: new Date()
+      };
+      setChatHistory(prev => [...prev, errorMessage]);
+      return;
+    }
+
     setIsGenerating(true);
     setError('');
 
@@ -1489,13 +1540,30 @@ ${currentSections.map(s => s.css).join('\n\n')}
             html: pageData.html_content,
             css: pageData.css_content,
             js: pageData.js_content
-          } : null
+          } : null,
+          // NEW: User API key and provider
+          userApiKey: userApiKeys[selectedProvider],
+          provider: selectedProvider,
+          conversationId: currentConversationId
         })
       });
 
       const data = await response.json();
 
       if (data.success) {
+        // Update conversation ID
+        if (data.conversationId) {
+          setCurrentConversationId(data.conversationId);
+
+          // Save conversation to localStorage
+          const updatedHistory = [...chatHistory, userMessage];
+          conversationSync.saveLocal(data.conversationId, updatedHistory, {
+            provider: selectedProvider,
+            usingUserKey: data.usingUserKey,
+            lastUpdated: new Date().toISOString()
+          });
+        }
+
         // Show the AI's plan
         if (data.plan) {
           setGenerationPlan(data.plan);
@@ -1534,6 +1602,10 @@ ${currentSections.map(s => s.css).join('\n\n')}
             slug: generateSlug(extractedTitle)
           }));
         }
+      } else if (data.needsKeyReconfiguration) {
+        // API key is invalid - prompt user to reconfigure
+        setShowKeySetupModal(true);
+        throw new Error(data.details || 'Your API key is invalid. Please update it in settings.');
       } else {
         throw new Error(data.error || 'Failed to generate page');
       }
@@ -1759,8 +1831,39 @@ ${currentSections.map(s => s.css).join('\n\n')}
             {/* AI Chat */}
             <div className="bg-slate-800 border border-slate-700 rounded-xl shadow-xl overflow-hidden flex flex-col">
               <div className="px-6 py-4 border-b border-slate-700 bg-slate-900/50">
-                <h3 className="text-lg font-semibold text-slate-200">🤖 Comprehensive AI Assistant</h3>
-                <p className="text-sm text-slate-400 mt-1">Upload a layout image or describe your page - I'll create a complete, professional page with all sections, animations, and styling</p>
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="text-lg font-semibold text-slate-200">🤖 Comprehensive AI Assistant</h3>
+
+                  {/* Provider Selector & Key Management */}
+                  <div className="flex items-center gap-3">
+                    {userApiKeys && (
+                      <select
+                        value={selectedProvider}
+                        onChange={(e) => setSelectedProvider(e.target.value)}
+                        disabled={isGenerating}
+                        className="px-3 py-1.5 text-sm bg-slate-700 text-slate-200 border border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:opacity-50"
+                      >
+                        {userApiKeys.claude && (
+                          <option value="claude">Claude Sonnet 4.5</option>
+                        )}
+                        {userApiKeys.gemini && (
+                          <option value="gemini">Gemini 2.0 Flash</option>
+                        )}
+                        {userApiKeys.openai && (
+                          <option value="openai">OpenAI GPT-4o</option>
+                        )}
+                      </select>
+                    )}
+                    <button
+                      onClick={() => setShowKeySetupModal(true)}
+                      className="px-3 py-1.5 text-sm bg-slate-700 text-slate-300 border border-slate-600 rounded-lg hover:bg-slate-600 transition-colors"
+                      title="Manage API Keys"
+                    >
+                      ⚙️ API Keys
+                    </button>
+                  </div>
+                </div>
+                <p className="text-sm text-slate-400">Upload a layout image or describe your page - I'll create a complete, professional page with all sections, animations, and styling</p>
               </div>
 
               <div className="flex-1 overflow-y-auto p-4 space-y-4">
@@ -2131,6 +2234,39 @@ ${currentSections.map(s => s.css).join('\n\n')}
           </div>
         </div>
       </div>
+
+      {/* API Key Setup Modal */}
+      {showKeySetupModal && (
+        <AIKeySetupModal
+          isOpen={showKeySetupModal}
+          onClose={() => setShowKeySetupModal(false)}
+          onSave={(keys) => {
+            setUserApiKeys(keys);
+            apiKeyStorage.saveKeys(keys);
+
+            // Auto-select first validated provider
+            const preferredProvider = Object.keys(keys).find(
+              provider => keys[provider] && keys[provider].length > 0
+            );
+            if (preferredProvider) {
+              setSelectedProvider(preferredProvider);
+              apiKeyStorage.savePreferredProvider(preferredProvider);
+            }
+
+            setShowKeySetupModal(false);
+
+            // Show success message
+            const successMessage = {
+              id: Date.now(),
+              type: 'system',
+              content: '✅ API keys configured successfully! You can now use AI features.',
+              timestamp: new Date()
+            };
+            setChatHistory(prev => [...prev, successMessage]);
+          }}
+          initialKeys={userApiKeys}
+        />
+      )}
     </AdminLayout>
   );
 }

@@ -1,9 +1,15 @@
 import fs from 'fs';
 import path from 'path';
 import AIProviderService from '../../../services/ai-provider.js';
+import { quickValidate, generateValidationReport } from '../../../lib/ai-code-validator.js';
+import { saveConversation, addMessage, initializeAIConversationTables } from '../../../lib/ai-conversation-init.js';
+import crypto from 'crypto';
 
 const SETTINGS_FILE = path.join(process.cwd(), 'data', 'ai-settings.json');
 const USAGE_FILE = path.join(process.cwd(), 'data', 'ai-usage.json');
+
+// Initialize conversation tables
+initializeAIConversationTables();
 
 function getSettings() {
   try {
@@ -289,48 +295,75 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const { prompt, context = '', iteration_type = 'new', separate_assets = false } = req.body;
+  const {
+    prompt,
+    context = '',
+    iteration_type = 'new',
+    separate_assets = false,
+    // NEW: User-provided API key and provider
+    userApiKey,
+    provider: userProvider,
+    conversationId
+  } = req.body;
+
   console.log('🤖 Extracted params:');
   console.log('  - prompt:', prompt);
   console.log('  - context length:', typeof context === 'string' ? context?.length : JSON.stringify(context).length);
   console.log('  - iteration_type:', iteration_type);
   console.log('  - separate_assets:', separate_assets);
+  console.log('  - userApiKey provided:', !!userApiKey);
+  console.log('  - user provider:', userProvider);
 
   if (!prompt) {
     console.log('❌ Missing prompt');
     return res.status(400).json({ error: 'Prompt is required' });
   }
 
-  // Get AI settings
-  console.log('🤖 Loading AI settings from:', SETTINGS_FILE);
-  const settings = getSettings();
-  console.log('🤖 Settings loaded:', settings ? 'SUCCESS' : 'FAILED');
+  // Determine which provider and key to use
+  let provider, apiKey, usingUserKey = false;
+  const settings = getSettings() || {};
 
-  if (!settings) {
-    console.log('❌ AI settings not configured');
-    return res.status(400).json({ error: 'AI settings not configured. Please configure in admin settings.' });
+  if (userApiKey && userProvider) {
+    // User provided their own API key
+    provider = userProvider;
+    apiKey = userApiKey;
+    usingUserKey = true;
+    console.log(`🤖 Using user-provided ${provider} API key`);
+  } else {
+    // Fallback to server settings
+    console.log('🤖 Loading AI settings from:', SETTINGS_FILE);
+
+    if (!settings || Object.keys(settings).length === 0) {
+      console.log('❌ AI settings not configured');
+      return res.status(400).json({
+        error: 'API key required. Please configure your AI provider key in the settings modal.'
+      });
+    }
+
+    provider = settings.ai_provider || 'gemini';
+
+    // Validate provider-specific API key
+    const providerKeys = {
+      'gemini': 'gemini_api_key',
+      'claude': 'claude_api_key',
+      'openai': 'openai_api_key'
+    };
+
+    const requiredKey = providerKeys[provider];
+    if (!settings[requiredKey]) {
+      console.log(`❌ ${provider} API key not configured`);
+      return res.status(400).json({
+        error: `API key required. Please configure your ${provider.toUpperCase()} API key in the settings modal.`
+      });
+    }
+
+    apiKey = settings[requiredKey];
+    console.log(`🤖 Using server ${provider} API key (fallback)`);
   }
 
-  // Get the AI provider (default to gemini for free tier)
-  const provider = settings.ai_provider || 'gemini';
   console.log('🤖 Using AI provider:', provider);
-  console.log('🤖 Max tokens:', settings.max_tokens);
-  console.log('🤖 Temperature:', settings.temperature);
-
-  // Validate provider-specific API key
-  const providerKeys = {
-    'gemini': 'gemini_api_key',
-    'claude': 'claude_api_key',
-    'openai': 'openai_api_key'
-  };
-
-  const requiredKey = providerKeys[provider];
-  if (!settings[requiredKey]) {
-    console.log(`❌ ${provider} API key not configured`);
-    return res.status(400).json({
-      error: `${provider.toUpperCase()} API key not configured. Please set up your API key in settings.`
-    });
-  }
+  console.log('🤖 Max tokens:', settings.max_tokens || 8192);
+  console.log('🤖 Temperature:', settings.temperature || 0.7);
 
   try {
     // Check cost limits
@@ -410,10 +443,20 @@ Generate ONLY the complete HTML code. Do not include markdown code blocks or exp
 
     // Call AI provider service
     console.log('🤖 Calling AI provider service...');
-    const aiProvider = new AIProviderService(settings);
+
+    // Create settings object with user's provider and key if provided
+    const providerSettings = {
+      ...settings,
+      ai_provider: provider,
+      [`${provider}_api_key`]: apiKey,
+      max_tokens: settings.max_tokens || 8192,
+      temperature: settings.temperature || 0.7
+    };
+
+    const aiProvider = new AIProviderService(providerSettings);
     const result = await aiProvider.generate(finalPrompt, {
-      maxTokens: settings.max_tokens,
-      temperature: settings.temperature
+      maxTokens: providerSettings.max_tokens,
+      temperature: providerSettings.temperature
     });
 
     const generatedCode = result.content;
@@ -447,24 +490,105 @@ Generate ONLY the complete HTML code. Do not include markdown code blocks or exp
     console.log('  - Estimated cost: $', estimatedCost);
     console.log('  - Provider:', result.provider);
 
-    // Track usage
-    console.log('🤖 Tracking usage...');
-    trackUsage(tokensUsed, estimatedCost);
+    // ============ VALIDATION PIPELINE ============
+    console.log('🔒 Running validation pipeline...');
+    let validationResult;
+    try {
+      validationResult = await quickValidate({
+        html: html_code,
+        css: css_code,
+        js: js_code,
+        mode: 'permissive' // Don't block deployment for minor issues
+      });
 
-    // Update monthly usage in settings (only for paid providers)
-    const newMonthlyUsage = (settings.current_month_usage || 0) + estimatedCost;
-    settings.current_month_usage = newMonthlyUsage;
-    console.log('🤖 Updated monthly usage to: $', newMonthlyUsage);
+      console.log('🔒 Validation complete:');
+      console.log('  - Valid:', validationResult.valid);
+      console.log('  - Errors:', validationResult.errors.length);
+      console.log('  - Warnings:', validationResult.warnings.length);
+      console.log('  - Processing time:', validationResult.processingTime + 'ms');
+
+      // Use sanitized code instead of raw AI output
+      if (validationResult.sanitizedCode) {
+        html_code = validationResult.sanitizedCode.html || html_code;
+        css_code = validationResult.sanitizedCode.css || css_code;
+        js_code = validationResult.sanitizedCode.js || js_code;
+        console.log('✅ Using sanitized code');
+      }
+
+      // Log validation report
+      if (validationResult.errors.length > 0 || validationResult.warnings.length > 0) {
+        const report = generateValidationReport(validationResult);
+        console.log('\n' + report + '\n');
+      }
+    } catch (validationError) {
+      console.error('⚠️ Validation error (non-blocking):', validationError.message);
+      validationResult = {
+        valid: true,
+        errors: [],
+        warnings: [`Validation skipped: ${validationError.message}`],
+        sanitizedCode: { html: html_code, css: css_code, js: js_code }
+      };
+    }
+    // ============================================
+
+    // Track usage (only if using server key)
+    if (!usingUserKey) {
+      console.log('🤖 Tracking server usage...');
+      trackUsage(tokensUsed, estimatedCost);
+
+      // Update monthly usage in settings
+      const newMonthlyUsage = (settings.current_month_usage || 0) + estimatedCost;
+      settings.current_month_usage = newMonthlyUsage;
+      console.log('🤖 Updated monthly usage to: $', newMonthlyUsage);
+
+      try {
+        fs.writeFileSync(SETTINGS_FILE, JSON.stringify(settings, null, 2));
+        console.log('✅ Settings file updated successfully');
+      } catch (error) {
+        console.error('❌ Failed to update settings file:', error);
+      }
+    }
+
+    // ============ CONVERSATION PERSISTENCE ============
+    const finalConversationId = conversationId || `conv_${crypto.randomBytes(16).toString('hex')}`;
 
     try {
-      fs.writeFileSync(SETTINGS_FILE, JSON.stringify(settings, null, 2));
-      console.log('✅ Settings file updated successfully');
-    } catch (error) {
-      console.error('❌ Failed to update settings file:', error);
+      await saveConversation({
+        conversationId: finalConversationId,
+        userId: req.session?.user?.id || null,
+        title: prompt.substring(0, 100),
+        provider,
+        metadata: {
+          generatedCode: { html: html_code, css: css_code, js: js_code },
+          validation: validationResult,
+          separate_assets,
+          usingUserKey
+        }
+      });
+
+      await addMessage({
+        conversationId: finalConversationId,
+        role: 'user',
+        content: prompt,
+        metadata: { iteration_type, separate_assets }
+      });
+
+      await addMessage({
+        conversationId: finalConversationId,
+        role: 'assistant',
+        content: generatedCode,
+        metadata: { code: { html: html_code, css: css_code, js: js_code }, tokens: tokensUsed }
+      });
+
+      console.log(`✅ Conversation ${finalConversationId} saved`);
+    } catch (convError) {
+      console.error('⚠️ Error saving conversation (non-blocking):', convError);
     }
+    // ================================================
 
     const responseData = {
       success: true,
+      conversationId: finalConversationId,
       html_code: html_code,
       html_content: html_code,
       css_code: css_code,
@@ -473,11 +597,18 @@ Generate ONLY the complete HTML code. Do not include markdown code blocks or exp
       js_content: js_code,
       tokens_used: tokensUsed,
       estimated_cost: estimatedCost,
-      monthly_usage: settings.current_month_usage,
+      monthly_usage: usingUserKey ? 0 : settings.current_month_usage,
       iteration_type,
       separated: separate_assets,
       provider: result.provider,
-      model: result.model
+      model: result.model,
+      usingUserKey,
+      validation: {
+        valid: validationResult?.valid || true,
+        errors: validationResult?.errors || [],
+        warnings: validationResult?.warnings || [],
+        processingTime: validationResult?.processingTime || 0
+      }
     };
 
     console.log('✅ Sending successful response');

@@ -2,7 +2,6 @@
 const nextConfig = {
   reactStrictMode: true,
   swcMinify: false,
-  output: 'standalone',
   trailingSlash: false,
   experimental: {
     outputFileTracingRoot: require('path').join(__dirname)

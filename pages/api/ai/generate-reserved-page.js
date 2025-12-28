@@ -2,6 +2,9 @@ import fs from 'fs';
 import path from 'path';
 import { withAdminAuth } from '../../../lib/auth-middleware';
 import AIProviderService from '../../../services/ai-provider.js';
+import { quickValidate, generateValidationReport } from '../../../lib/ai-code-validator.js';
+import { saveConversation, addMessage } from '../../../lib/ai-conversation-init.js';
+import crypto from 'crypto';
 
 const SETTINGS_FILE = path.join(process.cwd(), 'data', 'ai-settings.json');
 const USAGE_FILE = path.join(process.cwd(), 'data', 'ai-usage.json');
@@ -264,13 +267,26 @@ async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const { pageType, prompt, context = '', iteration_type = 'new', layoutAnalysis } = req.body;
+  const {
+    pageType,
+    prompt,
+    context = '',
+    iteration_type = 'new',
+    layoutAnalysis,
+    // NEW: User-provided API key and provider
+    userApiKey,
+    provider: userProvider,
+    conversationId
+  } = req.body;
   console.log('🏠 Extracted params:');
   console.log('  - pageType:', pageType);
   console.log('  - prompt:', prompt);
   console.log('  - context length:', context?.length || 0);
   console.log('  - iteration_type:', iteration_type);
   console.log('  - layoutAnalysis:', layoutAnalysis ? 'PROVIDED' : 'NONE');
+  console.log('  - userApiKey:', userApiKey ? 'PROVIDED' : 'NOT PROVIDED');
+  console.log('  - userProvider:', userProvider || 'NOT PROVIDED');
+  console.log('  - conversationId:', conversationId || 'NOT PROVIDED');
 
   if (!pageType || !prompt) {
     console.log('❌ Missing required parameters');
@@ -281,34 +297,52 @@ async function handler(req, res) {
 
   // Get AI settings
   console.log('🏠 Loading AI settings from:', SETTINGS_FILE);
-  const settings = getSettings();
-  console.log('🏠 Settings loaded:', settings ? 'SUCCESS' : 'FAILED');
+  const settings = getSettings() || {};
+  console.log('🏠 Settings loaded:', settings ? 'SUCCESS' : 'USING DEFAULTS');
 
-  if (!settings) {
-    console.log('❌ AI settings not configured');
-    return res.status(400).json({ error: 'AI settings not configured. Please configure in admin settings.' });
+  // Determine which provider and API key to use
+  let provider;
+  let apiKey;
+  let usingUserKey = false;
+
+  if (userApiKey && userProvider) {
+    // Use user-provided API key and provider
+    provider = userProvider;
+    apiKey = userApiKey;
+    usingUserKey = true;
+    console.log('[Reserved Page] Using user-provided API key for provider:', provider);
+  } else {
+    // Fallback to server settings (backward compatibility)
+    if (!settings.ai_provider && !settings.gemini_api_key && !settings.claude_api_key && !settings.openai_api_key) {
+      return res.status(400).json({
+        error: 'API key required. Please configure your API key in the settings modal.'
+      });
+    }
+
+    provider = settings.ai_provider || 'gemini';
+
+    // Validate provider-specific API key exists
+    const providerKeys = {
+      'gemini': 'gemini_api_key',
+      'claude': 'claude_api_key',
+      'openai': 'openai_api_key'
+    };
+
+    const requiredKey = providerKeys[provider];
+    if (!settings[requiredKey]) {
+      console.log(`❌ ${provider} API key not configured in server settings`);
+      return res.status(400).json({
+        error: `${provider.toUpperCase()} API key not configured. Please set up your API key in settings.`
+      });
+    }
+
+    apiKey = settings[requiredKey];
+    console.log('[Reserved Page] Using server API key for provider:', provider);
   }
 
-  // Get the AI provider (default to gemini for free tier)
-  const provider = settings.ai_provider || 'gemini';
   console.log('🏠 Using AI provider:', provider);
-  console.log('🏠 Max tokens:', settings.max_tokens);
-  console.log('🏠 Temperature:', settings.temperature);
-
-  // Validate provider-specific API key
-  const providerKeys = {
-    'gemini': 'gemini_api_key',
-    'claude': 'claude_api_key',
-    'openai': 'openai_api_key'
-  };
-
-  const requiredKey = providerKeys[provider];
-  if (!settings[requiredKey]) {
-    console.log(`❌ ${provider} API key not configured`);
-    return res.status(400).json({
-      error: `${provider.toUpperCase()} API key not configured. Please set up your API key in settings.`
-    });
-  }
+  console.log('🏠 Max tokens:', settings.max_tokens || 8192);
+  console.log('🏠 Temperature:', settings.temperature || 0.7);
 
   // Get page rules and context
   console.log('🏠 Loading page rules from:', RULES_FILE);
@@ -361,12 +395,19 @@ async function handler(req, res) {
       console.log('🏠 Layout analysis included in prompt');
     }
 
-    // Call AI provider service
+    // Call AI provider service with appropriate API key
     console.log('🏠 Calling AI provider service...');
-    const aiProvider = new AIProviderService(settings);
+    const providerSettings = {
+      ...settings,
+      ai_provider: provider,
+      [`${provider}_api_key`]: apiKey,
+      max_tokens: settings.max_tokens || 8192,
+      temperature: settings.temperature || 0.7
+    };
+    const aiProvider = new AIProviderService(providerSettings);
     const result = await aiProvider.generate(finalPrompt, {
-      maxTokens: settings.max_tokens,
-      temperature: settings.temperature
+      maxTokens: providerSettings.max_tokens,
+      temperature: providerSettings.temperature
     });
 
     const generatedCode = result.content;
@@ -380,33 +421,131 @@ async function handler(req, res) {
     console.log('  - Estimated cost: $', estimatedCost);
     console.log('  - Provider:', result.provider);
 
-    // Track usage
-    console.log('🏠 Tracking usage...');
-    trackUsage(tokensUsed, estimatedCost);
-
-    // Update monthly usage in settings
-    const newMonthlyUsage = (settings.current_month_usage || 0) + estimatedCost;
-    settings.current_month_usage = newMonthlyUsage;
-    console.log('🏠 Updated monthly usage to: $', newMonthlyUsage);
-    
+    // ============ VALIDATION PIPELINE ============
+    console.log('🔒 Running validation pipeline for reserved page...');
+    let validationResult;
+    let sanitizedCode = generatedCode;
     try {
-      fs.writeFileSync(SETTINGS_FILE, JSON.stringify(settings, null, 2));
-      console.log('✅ Settings file updated successfully');
-    } catch (error) {
-      console.error('❌ Failed to update settings file:', error);
+      validationResult = await quickValidate({
+        html: generatedCode,
+        css: '', // Reserved pages have CSS inline in HTML
+        js: '', // Reserved pages have JS inline in HTML
+        mode: 'permissive'
+      });
+
+      console.log('🔒 Validation complete:');
+      console.log('  - Valid:', validationResult.valid);
+      console.log('  - Errors:', validationResult.errors.length);
+      console.log('  - Warnings:', validationResult.warnings.length);
+      console.log('  - Processing time:', validationResult.processingTime + 'ms');
+
+      // Use sanitized code
+      if (validationResult.sanitizedCode && validationResult.sanitizedCode.html) {
+        sanitizedCode = validationResult.sanitizedCode.html;
+        console.log('✅ Using sanitized code');
+      }
+
+      // Log validation report
+      if (validationResult.errors.length > 0 || validationResult.warnings.length > 0) {
+        const report = generateValidationReport(validationResult);
+        console.log('\n' + report + '\n');
+      }
+    } catch (validationError) {
+      console.error('⚠️ Validation error (non-blocking):', validationError.message);
+      validationResult = {
+        valid: true,
+        errors: [],
+        warnings: [`Validation skipped: ${validationError.message}`],
+        sanitizedCode: { html: generatedCode, css: '', js: '' }
+      };
     }
+    // ============================================
+
+    // Track usage (only for server keys, not user keys)
+    if (!usingUserKey) {
+      console.log('🏠 Tracking server usage...');
+      trackUsage(tokensUsed, estimatedCost);
+
+      // Update monthly usage in settings
+      const newMonthlyUsage = (settings.current_month_usage || 0) + estimatedCost;
+      settings.current_month_usage = newMonthlyUsage;
+      console.log('🏠 Updated monthly usage to: $', newMonthlyUsage);
+
+      try {
+        fs.writeFileSync(SETTINGS_FILE, JSON.stringify(settings, null, 2));
+        console.log('✅ Settings file updated successfully');
+      } catch (error) {
+        console.error('❌ Failed to update settings file:', error);
+      }
+    } else {
+      console.log('🏠 Skipping usage tracking (using user-provided API key)');
+    }
+
+    // ============ CONVERSATION PERSISTENCE ============
+    // Generate or use provided conversation ID
+    const finalConversationId = conversationId || `conv_${crypto.randomBytes(16).toString('hex')}`;
+
+    // Save conversation to database
+    try {
+      await saveConversation({
+        conversationId: finalConversationId,
+        userId: req.session?.user?.id || null,
+        title: `${rules[pageType].name}: ${prompt.substring(0, 100)}`,
+        provider: provider,
+        metadata: {
+          pageType,
+          generatedCode: sanitizedCode,
+          validation: validationResult,
+          layoutAnalysis,
+          usingUserKey,
+          iteration_type
+        }
+      });
+
+      // Add user message
+      await addMessage({
+        conversationId: finalConversationId,
+        role: 'user',
+        content: prompt,
+        metadata: { pageType, iteration_type, layoutAnalysis: layoutAnalysis ? 'provided' : null }
+      });
+
+      // Add assistant message
+      await addMessage({
+        conversationId: finalConversationId,
+        role: 'assistant',
+        content: sanitizedCode,
+        metadata: {
+          code: { html: sanitizedCode },
+          tokens: { used: tokensUsed, cost: estimatedCost }
+        }
+      });
+
+      console.log(`✅ Conversation ${finalConversationId} saved to database`);
+    } catch (convError) {
+      console.error('⚠️ Error saving conversation (non-blocking):', convError);
+    }
+    // ================================================
 
     const responseData = {
       success: true,
-      html_code: generatedCode,
+      conversationId: finalConversationId,
+      html_code: sanitizedCode,
       page_type: pageType,
       tokens_used: tokensUsed,
       estimated_cost: estimatedCost,
-      monthly_usage: settings.current_month_usage,
+      monthly_usage: usingUserKey ? 0 : settings.current_month_usage,
       iteration_type,
       rules_applied: rules[pageType].name,
       provider: result.provider,
-      model: result.model
+      model: result.model,
+      usingUserKey,
+      validation: {
+        valid: validationResult?.valid || true,
+        errors: validationResult?.errors || [],
+        warnings: validationResult?.warnings || [],
+        processingTime: validationResult?.processingTime || 0
+      }
     };
     
     console.log('✅ Sending successful response:');
@@ -424,6 +563,26 @@ async function handler(req, res) {
     console.error('❌ Error stack:', error.stack);
     console.error('❌ Error message:', error.message);
     console.error('❌ Error type:', error.constructor.name);
+
+    // Check for API key authentication errors
+    if (error.status === 401 || error.message?.includes('invalid_api_key') || error.message?.includes('authentication') || error.message?.includes('API key')) {
+      return res.status(401).json({
+        error: 'Invalid API key',
+        details: 'Your API key is invalid or expired. Please update it in the settings modal.',
+        needsKeyReconfiguration: true
+      });
+    }
+
+    // Check for quota/billing errors
+    if (error.status === 429 || error.message?.includes('quota') || error.message?.includes('overloaded')) {
+      return res.status(429).json({
+        error: 'API quota exceeded',
+        details: 'Your API key has exceeded its quota or the service is overloaded. Please try again later.',
+        needsKeyReconfiguration: false
+      });
+    }
+
+    // Generic error
     res.status(500).json({
       error: 'Failed to generate reserved page: ' + error.message
     });

@@ -81,10 +81,19 @@ const RESERVED_PAGE_SLUGS = [
 ];
 
 // Database setup
-const dbPath = process.env.NODE_ENV === 'production'
-  ? path.join('/app/data', 'site_builder.db')
-  : path.join(process.cwd(), 'site_builder.db');
-const db = new sqlite3.Database(dbPath);
+const dbPath = process.env.DB_PATH || (
+  process.env.NODE_ENV === 'production'
+    ? path.join('/app/data', 'site_builder.db')
+    : path.join(process.cwd(), 'site_builder.db')
+);
+console.log('Database path:', dbPath);
+const db = new sqlite3.Database(dbPath, (err) => {
+  if (err) {
+    console.error('Failed to open database:', err);
+    process.exit(1);
+  }
+  console.log('Database opened successfully');
+});
 
 // Initialize database tables
 db.serialize(() => {
@@ -954,7 +963,24 @@ const upload = multer({
   }
 });
 
-nextApp.prepare().then(() => {
+console.log('Starting Next.js preparation...');
+console.log('NODE_ENV:', process.env.NODE_ENV);
+console.log('PORT:', process.env.PORT);
+console.log('dev mode:', dev);
+
+process.on('uncaughtException', (err) => {
+  console.error('Uncaught Exception:', err);
+  process.exit(1);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+  process.exit(1);
+});
+
+nextApp.prepare()
+  .then(() => {
+  console.log('Next.js prepared successfully!');
   const server = express();
 
   // Middleware
@@ -974,7 +1000,7 @@ nextApp.prepare().then(() => {
   }));
   server.use(session({
     store: new FileStore({
-      path: path.join(__dirname, '.sessions'),
+      path: path.join(__dirname, 'data', '.sessions'),
       ttl: 86400, // 24 hours in seconds
       retries: 0,
       reapInterval: 3600 // Clean up expired sessions every hour
@@ -5247,4 +5273,8 @@ server.${httpMethod.toLowerCase()}('${routePath}', requireSubscriberAuth, async 
     console.log(`> Admin panel: http://localhost:${PORT}/admin`);
     console.log(`> Default login: admin@example.com / admin123`);
   });
+})
+.catch((err) => {
+  console.error('Failed to prepare Next.js:', err);
+  process.exit(1);
 });

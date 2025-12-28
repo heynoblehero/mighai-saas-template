@@ -1,36 +1,64 @@
 import Anthropic from '@anthropic-ai/sdk';
 import fs from 'fs';
 import path from 'path';
+import { quickValidate, generateValidationReport } from '../../../lib/ai-code-validator.js';
+import { saveConversation, addMessage, initializeAIConversationTables } from '../../../lib/ai-conversation-init.js';
+import crypto from 'crypto';
+
+// Initialize conversation tables on first load
+initializeAIConversationTables();
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const { userPrompt, layoutAnalysis, iteration_type = 'new', context, imagePath } = req.body;
+  const {
+    userPrompt,
+    layoutAnalysis,
+    iteration_type = 'new',
+    context,
+    imagePath,
+    // NEW: User-provided API key and provider
+    userApiKey,
+    provider = 'claude',
+    conversationId
+  } = req.body;
 
   if (!userPrompt) {
     return res.status(400).json({ error: 'User prompt is required' });
   }
 
   try {
-    // Read AI settings
-    const settingsPath = path.join(process.cwd(), 'data', 'ai-settings.json');
-    let settings = {};
+    // Determine which API key to use (user's key or server's key)
+    let apiKey;
+    let usingUserKey = false;
 
-    if (fs.existsSync(settingsPath)) {
-      settings = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
+    if (userApiKey) {
+      // User provided their own API key
+      apiKey = userApiKey;
+      usingUserKey = true;
+      console.log('[Comprehensive Page] Using user-provided Claude API key');
+    } else {
+      // Fallback to server settings (backward compatibility)
+      const settingsPath = path.join(process.cwd(), 'data', 'ai-settings.json');
+      let settings = {};
+
+      if (fs.existsSync(settingsPath)) {
+        settings = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
+      }
+
+      if (!settings.claude_api_key) {
+        return res.status(400).json({
+          error: 'API key required. Please configure your Claude API key in the settings modal.'
+        });
+      }
+
+      apiKey = settings.claude_api_key;
+      console.log('[Comprehensive Page] Using server Claude API key (fallback)');
     }
 
-    if (!settings.claude_api_key) {
-      return res.status(500).json({
-        error: 'Claude API key not configured'
-      });
-    }
-
-    const anthropic = new Anthropic({
-      apiKey: settings.claude_api_key,
-    });
+    const anthropic = new Anthropic({ apiKey });
 
     // Prepare image data if provided
     let imageData = null;
@@ -167,35 +195,154 @@ Generate a complete, beautiful, modern page now!`;
     const cssMatch = generatedCode.match(/```css\n([\s\S]*?)```/);
     const jsMatch = generatedCode.match(/```javascript\n([\s\S]*?)```/);
 
-    const html = htmlMatch ? htmlMatch[1].trim() : '';
-    const css = cssMatch ? cssMatch[1].trim() : '';
-    const js = jsMatch ? jsMatch[1].trim() : '';
+    let html = htmlMatch ? htmlMatch[1].trim() : '';
+    let css = cssMatch ? cssMatch[1].trim() : '';
+    let js = jsMatch ? jsMatch[1].trim() : '';
 
     if (!html && !css) {
       throw new Error('Failed to extract code from AI response');
     }
 
-    // Update AI usage
+    // ============ VALIDATION PIPELINE ============
+    console.log('🔒 Running validation pipeline for comprehensive page...');
+    let validationResult;
+    try {
+      validationResult = await quickValidate({
+        html: html,
+        css: css,
+        js: js,
+        mode: 'permissive'
+      });
+
+      console.log('🔒 Validation complete:');
+      console.log('  - Valid:', validationResult.valid);
+      console.log('  - Errors:', validationResult.errors.length);
+      console.log('  - Warnings:', validationResult.warnings.length);
+      console.log('  - Processing time:', validationResult.processingTime + 'ms');
+
+      // Use sanitized code
+      if (validationResult.sanitizedCode) {
+        html = validationResult.sanitizedCode.html || html;
+        css = validationResult.sanitizedCode.css || css;
+        js = validationResult.sanitizedCode.js || js;
+        console.log('✅ Using sanitized code');
+      }
+
+      // Log validation report
+      if (validationResult.errors.length > 0 || validationResult.warnings.length > 0) {
+        const report = generateValidationReport(validationResult);
+        console.log('\n' + report + '\n');
+      }
+    } catch (validationError) {
+      console.error('⚠️ Validation error (non-blocking):', validationError.message);
+      validationResult = {
+        valid: true,
+        errors: [],
+        warnings: [`Validation skipped: ${validationError.message}`],
+        sanitizedCode: { html, css, js }
+      };
+    }
+    // ============================================
+
+    // Update AI usage (only if using server key)
     const totalUsage = {
       input_tokens: planningResponse.usage.input_tokens + generationResponse.usage.input_tokens,
       output_tokens: planningResponse.usage.output_tokens + generationResponse.usage.output_tokens,
     };
-    updateAIUsage(settings, totalUsage);
+
+    if (!usingUserKey) {
+      // Only track server usage, not user's usage
+      updateAIUsage(settings, totalUsage);
+    }
+
+    // ============ CONVERSATION PERSISTENCE ============
+    // Generate or use provided conversation ID
+    const finalConversationId = conversationId || `conv_${crypto.randomBytes(16).toString('hex')}`;
+
+    // Save conversation to database
+    try {
+      await saveConversation({
+        conversationId: finalConversationId,
+        userId: req.session?.user?.id || null,
+        title: userPrompt.substring(0, 100), // Use first 100 chars of prompt as title
+        provider: 'claude',
+        metadata: {
+          plan: plan,
+          generatedCode: { html, css, js },
+          validation: validationResult,
+          layoutAnalysis,
+          usingUserKey
+        }
+      });
+
+      // Add user message
+      await addMessage({
+        conversationId: finalConversationId,
+        role: 'user',
+        content: userPrompt,
+        metadata: { imagePath, iteration_type }
+      });
+
+      // Add assistant message
+      await addMessage({
+        conversationId: finalConversationId,
+        role: 'assistant',
+        content: generationResponse.content[0].text,
+        metadata: {
+          plan,
+          code: { html, css, js },
+          tokens: totalUsage
+        }
+      });
+
+      console.log(`✅ Conversation ${finalConversationId} saved to database`);
+    } catch (convError) {
+      console.error('⚠️ Error saving conversation (non-blocking):', convError);
+    }
+    // ================================================
 
     console.log('✅ Page generation complete');
 
     res.status(200).json({
       success: true,
+      conversationId: finalConversationId,
       plan: plan,
       html_code: html,
       css_code: css,
       js_code: js,
       usage: totalUsage,
+      validation: {
+        valid: validationResult?.valid || true,
+        errors: validationResult?.errors || [],
+        warnings: validationResult?.warnings || [],
+        processingTime: validationResult?.processingTime || 0
+      },
+      usingUserKey,
       message: 'Page generated successfully with comprehensive planning'
     });
 
   } catch (error) {
     console.error('❌ Page generation error:', error);
+
+    // Check for API key authentication errors
+    if (error.status === 401 || error.message?.includes('invalid_api_key') || error.message?.includes('authentication')) {
+      return res.status(401).json({
+        error: 'Invalid API key',
+        details: 'Your API key is invalid or expired. Please update it in the settings modal.',
+        needsKeyReconfiguration: true
+      });
+    }
+
+    // Check for quota/billing errors
+    if (error.status === 429 || error.message?.includes('quota') || error.message?.includes('overloaded')) {
+      return res.status(429).json({
+        error: 'API quota exceeded',
+        details: 'Your API key has exceeded its quota or the service is overloaded. Please try again later.',
+        needsKeyReconfiguration: false
+      });
+    }
+
+    // Generic error
     res.status(500).json({
       error: 'Failed to generate page',
       details: error.message

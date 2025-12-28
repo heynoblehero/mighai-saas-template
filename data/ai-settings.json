@@ -1,6 +1,6 @@
 {
   "ai_provider": "gemini",
-  "gemini_api_key": "-lfuJ1PMGVpemNE",
+  "gemini_api_key": "",
   "gemini_model": "gemini-2.0-flash",
   "claude_model": "claude-sonnet-4-5-20250929",
   "openai_api_key": "",
