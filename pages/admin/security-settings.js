@@ -20,8 +20,22 @@ export default function SecuritySettings() {
   const [success, setSuccess] = useState('');
   const [testingTelegram, setTestingTelegram] = useState(false);
 
+  // Account Management State
+  const [accountData, setAccountData] = useState({
+    currentPassword: '',
+    newUsername: '',
+    newEmail: '',
+    newPassword: '',
+    confirmPassword: ''
+  });
+  const [accountSaving, setAccountSaving] = useState(false);
+  const [accountError, setAccountError] = useState('');
+  const [accountSuccess, setAccountSuccess] = useState('');
+  const [currentUser, setCurrentUser] = useState(null);
+
   useEffect(() => {
     loadSettings();
+    loadCurrentUser();
   }, []);
 
   const loadSettings = async () => {
@@ -105,6 +119,109 @@ export default function SecuritySettings() {
       setError('Failed to save settings');
     } finally {
       setSaving(false);
+    }
+  };
+
+  // Account Management Functions
+  const loadCurrentUser = async () => {
+    try {
+      const response = await fetch('/api/auth/me');
+      const data = await response.json();
+      if (data.success) {
+        setCurrentUser(data.user);
+        setAccountData(prev => ({
+          ...prev,
+          newUsername: data.user.username,
+          newEmail: data.user.email
+        }));
+      }
+    } catch (err) {
+      console.error('Failed to load user data:', err);
+    }
+  };
+
+  const handleAccountChange = (field, value) => {
+    setAccountData(prev => ({ ...prev, [field]: value }));
+    setAccountError('');
+    setAccountSuccess('');
+  };
+
+  const updateAccount = async () => {
+    setAccountSaving(true);
+    setAccountError('');
+    setAccountSuccess('');
+
+    // Validation
+    if (!accountData.currentPassword) {
+      setAccountError('Current password is required');
+      setAccountSaving(false);
+      return;
+    }
+
+    // Check if anything changed
+    const usernameChanged = accountData.newUsername && accountData.newUsername !== currentUser?.username;
+    const emailChanged = accountData.newEmail && accountData.newEmail !== currentUser?.email;
+    const passwordChanged = accountData.newPassword && accountData.newPassword.length > 0;
+
+    if (!usernameChanged && !emailChanged && !passwordChanged) {
+      setAccountError('No changes detected');
+      setAccountSaving(false);
+      return;
+    }
+
+    // Validate password confirmation
+    if (passwordChanged && accountData.newPassword !== accountData.confirmPassword) {
+      setAccountError('New passwords do not match');
+      setAccountSaving(false);
+      return;
+    }
+
+    try {
+      const payload = {
+        currentPassword: accountData.currentPassword
+      };
+
+      if (usernameChanged) payload.newUsername = accountData.newUsername;
+      if (emailChanged) payload.newEmail = accountData.newEmail;
+      if (passwordChanged) payload.newPassword = accountData.newPassword;
+
+      const response = await fetch('/api/admin/update-account', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        setAccountSuccess('Account updated successfully!');
+
+        // Clear password fields
+        setAccountData(prev => ({
+          ...prev,
+          currentPassword: '',
+          newPassword: '',
+          confirmPassword: ''
+        }));
+
+        // If password was changed, redirect to login after 2 seconds
+        if (data.passwordChanged) {
+          setAccountSuccess('Account updated! Redirecting to login...');
+          setTimeout(() => {
+            window.location.href = '/admin/login';
+          }, 2000);
+        } else {
+          // Reload user data
+          loadCurrentUser();
+        }
+      } else {
+        setAccountError(data.error || 'Failed to update account');
+      }
+    } catch (err) {
+      console.error('Account update error:', err);
+      setAccountError('Failed to update account');
+    } finally {
+      setAccountSaving(false);
     }
   };
 
@@ -354,6 +471,132 @@ export default function SecuritySettings() {
             </div>
           </div>
         )}
+
+        {/* Account Management Section */}
+        <div className="bg-slate-800 border border-slate-700 rounded-xl p-6">
+          <h3 className="text-lg font-semibold text-slate-200 mb-4 flex items-center">
+            <span className="mr-2">👤</span>
+            Account Management
+          </h3>
+
+          {accountError && (
+            <div className="mb-4 bg-red-900/20 border border-red-600/30 text-red-300 px-4 py-3 rounded-xl">
+              {accountError}
+            </div>
+          )}
+
+          {accountSuccess && (
+            <div className="mb-4 bg-green-900/20 border border-green-600/30 text-green-300 px-4 py-3 rounded-xl">
+              {accountSuccess}
+            </div>
+          )}
+
+          <div className="space-y-4">
+            <div className="bg-blue-900/20 border border-blue-600/30 rounded-lg p-4 mb-4">
+              <p className="text-blue-200/80 text-sm">
+                Update your account credentials. All changes require your current password for verification.
+                {' '}If you change your password, you will be logged out and need to log in again.
+              </p>
+            </div>
+
+            {/* Current Password - Always Required */}
+            <div>
+              <label className="block text-sm font-medium text-slate-300 mb-2">
+                Current Password <span className="text-red-400">*</span>
+              </label>
+              <input
+                type="password"
+                value={accountData.currentPassword}
+                onChange={(e) => handleAccountChange('currentPassword', e.target.value)}
+                className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-slate-200 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                placeholder="Enter your current password"
+                required
+              />
+              <p className="text-slate-400 text-xs mt-1">Required to make any changes</p>
+            </div>
+
+            {/* Username */}
+            <div>
+              <label className="block text-sm font-medium text-slate-300 mb-2">
+                Username
+              </label>
+              <input
+                type="text"
+                value={accountData.newUsername}
+                onChange={(e) => handleAccountChange('newUsername', e.target.value)}
+                className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-slate-200 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                placeholder="Enter new username"
+              />
+              <p className="text-slate-400 text-xs mt-1">Leave unchanged if you don't want to update</p>
+            </div>
+
+            {/* Email */}
+            <div>
+              <label className="block text-sm font-medium text-slate-300 mb-2">
+                Email
+              </label>
+              <input
+                type="email"
+                value={accountData.newEmail}
+                onChange={(e) => handleAccountChange('newEmail', e.target.value)}
+                className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-slate-200 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                placeholder="Enter new email"
+              />
+              <p className="text-slate-400 text-xs mt-1">Leave unchanged if you don't want to update</p>
+            </div>
+
+            {/* New Password */}
+            <div>
+              <label className="block text-sm font-medium text-slate-300 mb-2">
+                New Password
+              </label>
+              <input
+                type="password"
+                value={accountData.newPassword}
+                onChange={(e) => handleAccountChange('newPassword', e.target.value)}
+                className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-slate-200 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                placeholder="Enter new password (optional)"
+              />
+              <p className="text-slate-400 text-xs mt-1">
+                Min 8 characters, must include letters and numbers. Leave blank to keep current password.
+              </p>
+            </div>
+
+            {/* Confirm New Password */}
+            <div>
+              <label className="block text-sm font-medium text-slate-300 mb-2">
+                Confirm New Password
+              </label>
+              <input
+                type="password"
+                value={accountData.confirmPassword}
+                onChange={(e) => handleAccountChange('confirmPassword', e.target.value)}
+                className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-slate-200 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                placeholder="Confirm new password"
+                disabled={!accountData.newPassword}
+              />
+            </div>
+
+            {/* Update Button */}
+            <button
+              onClick={updateAccount}
+              disabled={accountSaving}
+              className="w-full bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-3 rounded-lg font-medium transition-colors disabled:opacity-50 flex items-center justify-center space-x-2"
+            >
+              {accountSaving ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                  <span>Updating Account...</span>
+                </>
+              ) : (
+                <>
+                  <span>💾</span>
+                  <span>Update Account</span>
+                </>
+              )}
+            </button>
+          </div>
+        </div>
 
         {/* Save Button */}
         <div className="flex justify-end space-x-3">

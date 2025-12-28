@@ -33,32 +33,6 @@ export default function AdminSettings() {
       ]
     },
     {
-      id: 'ai',
-      name: 'AI & Code Generation',
-      description: 'Configure AI-powered page building and code generation',
-      icon: '🤖',
-      items: [
-        {
-          title: 'Claude API Configuration',
-          description: 'Set up Claude API for AI-powered page generation',
-          href: '/admin/ai-settings',
-          action: 'Configure API'
-        },
-        {
-          title: 'Page Builder Templates',
-          description: 'Manage AI page generation templates and examples',
-          href: '/admin/page-templates',
-          action: 'Manage Templates'
-        },
-        {
-          title: 'AI Usage Analytics',
-          description: 'Monitor API usage, costs, and generation statistics',
-          href: '/admin/ai-analytics',
-          action: 'View Analytics'
-        }
-      ]
-    },
-    {
       id: 'security',
       name: 'Security & Authentication',
       description: 'Two-factor authentication and admin security settings',
