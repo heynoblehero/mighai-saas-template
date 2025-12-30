@@ -58,26 +58,26 @@ export default function BlogAdmin() {
             <p className="text-slate-400 mt-1">Create and manage your blog content</p>
           </div>
           <div className="mt-4 sm:mt-0 flex space-x-3">
-            <Link 
-              href="/admin/blog/templates" 
-              className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors inline-flex items-center space-x-2"
+            <Link
+              href="/admin/blog/templates"
+              className="px-6 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-medium transition-colors inline-flex items-center space-x-2"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
               </svg>
-              <span>Templates</span>
+              <span>Create Template</span>
             </Link>
-            <Link 
-              href="/admin/blog/generate" 
-              className="px-6 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-medium transition-colors inline-flex items-center space-x-2"
+            <Link
+              href="/admin/blog/generate"
+              className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors inline-flex items-center space-x-2"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
               </svg>
-              <span>Generate</span>
+              <span>Generate Posts</span>
             </Link>
-            <Link 
-              href="/admin/blog/new" 
+            <Link
+              href="/admin/blog/new"
               className="px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-medium transition-colors inline-flex items-center space-x-2"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -85,6 +85,41 @@ export default function BlogAdmin() {
               </svg>
               <span>Write New Post</span>
             </Link>
+          </div>
+        </div>
+
+        {/* Template Creation Banner */}
+        <div className="bg-gradient-to-r from-purple-900/30 to-blue-900/30 border border-purple-600/30 rounded-xl p-6">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between">
+            <div className="flex-1 mb-4 md:mb-0">
+              <h3 className="text-xl font-semibold text-slate-100 mb-2">Programmatic Blog Templates</h3>
+              <p className="text-slate-300 mb-3">
+                Create templates to generate hundreds of SEO-optimized blog posts automatically from your data
+              </p>
+              <div className="flex space-x-3">
+                <Link
+                  href="/admin/blog/templates"
+                  className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-medium transition-colors inline-flex items-center space-x-2"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  <span>Manage Templates</span>
+                </Link>
+                <Link
+                  href="/admin/blog/generate"
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors inline-flex items-center space-x-2"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                  </svg>
+                  <span>Generate Posts</span>
+                </Link>
+              </div>
+            </div>
+            <div className="flex items-center justify-center">
+              <div className="text-4xl">🚀</div>
+            </div>
           </div>
         </div>
 

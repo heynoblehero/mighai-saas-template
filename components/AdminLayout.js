@@ -51,13 +51,7 @@ const navigation = [
       { name: 'API Routes', href: '/admin/backend/routes', icon: 'code', current: false },
       { name: 'Server Logs', href: '/admin/backend/server-logs', icon: 'file-text', current: false },
       { name: 'Integrations', href: '/admin/integrations', icon: 'zap', current: false },
-    ]
-  },
-  {
-    name: 'Development',
-    items: [
       { name: 'Connect Telegram', href: '/admin/telegram-bots', icon: 'message-square', current: false },
-      { name: 'Logs', href: '/admin/error-monitoring', icon: 'alert-triangle', current: false, badge: '3' },
     ]
   },
   {

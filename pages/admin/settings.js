@@ -53,10 +53,10 @@ export default function AdminSettings() {
       icon: '⚙️',
       items: [
         {
-          title: 'Error Monitoring',
-          description: 'View system errors and troubleshooting information',
-          href: '/admin/error-monitoring',
-          action: 'View Errors'
+          title: 'Logs & Error Monitoring',
+          description: 'View system logs and error monitoring information',
+          href: '/admin/backend/server-logs',
+          action: 'View Logs'
         },
         {
           title: 'Support Messages',

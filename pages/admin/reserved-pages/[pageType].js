@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import AdminLayout from '../../../components/AdminLayout';
+import AIPageBuilder from '../../../components/AIPageBuilder';
 
 export default function ReservedPageCustomizer() {
   const router = useRouter();
