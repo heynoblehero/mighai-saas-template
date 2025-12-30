@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import AdminLayout from '../../components/AdminLayout';
-import { 
-  BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, 
+import {
+  BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer, PieChart, Pie, Cell, AreaChart, Area,
   RadialBarChart, RadialBar, Legend, ComposedChart, ScatterChart, Scatter
 } from 'recharts';
@@ -17,15 +17,15 @@ const useAnimatedCounter = (end, duration = 2000, decimals = 0) => {
     const animate = (timestamp) => {
       if (!startTimeRef.current) startTimeRef.current = timestamp;
       const progress = Math.min((timestamp - startTimeRef.current) / duration, 1);
-      
+
       countRef.current = end * progress;
       setCount(Number(countRef.current.toFixed(decimals)));
-      
+
       if (progress < 1) {
         requestRef.current = requestAnimationFrame(animate);
       }
     };
-    
+
     requestRef.current = requestAnimationFrame(animate);
     return () => cancelAnimationFrame(requestRef.current);
   }, [end, duration, decimals]);
@@ -45,10 +45,10 @@ export default function Analytics() {
     const now = new Date();
     const days = timeframe === '7d' ? 7 : timeframe === '30d' ? 30 : 90;
     const data = [];
-    
+
     for (let i = days - 1; i >= 0; i--) {
       const date = new Date(now - i * 24 * 60 * 60 * 1000);
-      
+
       data.push({
         date: date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
         fullDate: date.toISOString().split('T')[0],
@@ -65,7 +65,7 @@ export default function Analytics() {
   };
 
   const analyticsData = generateAnalyticsData();
-  
+
   // Calculate totals for animated counters
   const totalPageViews = analyticsData.reduce((sum, item) => sum + item.pageViews, 0);
   const totalVisitors = analyticsData.reduce((sum, item) => sum + item.uniqueVisitors, 0);
@@ -125,8 +125,8 @@ export default function Analytics() {
               </p>
             </div>
             <div className="header-actions">
-              <select 
-                value={timeframe} 
+              <select
+                value={timeframe}
                 onChange={(e) => setTimeframe(e.target.value)}
                 className="timeframe-select"
               >
@@ -134,8 +134,8 @@ export default function Analytics() {
                 <option value="30d">Last 30 days</option>
                 <option value="90d">Last 3 months</option>
               </select>
-              <select 
-                value={selectedMetric} 
+              <select
+                value={selectedMetric}
                 onChange={(e) => setSelectedMetric(e.target.value)}
                 className="timeframe-select"
               >
@@ -258,26 +258,26 @@ export default function Analytics() {
                       </linearGradient>
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" opacity={0.3} />
-                    <XAxis 
-                      dataKey="date" 
+                    <XAxis
+                      dataKey="date"
                       stroke="var(--color-text-subdued)"
                       fontSize={11}
                       tickLine={false}
                     />
-                    <YAxis 
+                    <YAxis
                       yAxisId="pageViews"
                       stroke="var(--color-text-subdued)"
                       fontSize={11}
                       tickLine={false}
                     />
-                    <YAxis 
+                    <YAxis
                       yAxisId="visitors"
                       orientation="right"
                       stroke="var(--color-text-subdued)"
                       fontSize={11}
                       tickLine={false}
                     />
-                    <Tooltip 
+                    <Tooltip
                       contentStyle={{
                         backgroundColor: 'var(--color-surface)',
                         border: '1px solid var(--color-border)',
@@ -286,30 +286,30 @@ export default function Analytics() {
                         boxShadow: 'var(--shadow-popover)'
                       }}
                     />
-                    <Area 
+                    <Area
                       yAxisId="pageViews"
-                      type="monotone" 
-                      dataKey="pageViews" 
-                      stroke="var(--color-primary)" 
-                      fillOpacity={1} 
-                      fill="url(#pageViewsGradient)" 
+                      type="monotone"
+                      dataKey="pageViews"
+                      stroke="var(--color-primary)"
+                      fillOpacity={1}
+                      fill="url(#pageViewsGradient)"
                       strokeWidth={3}
                       animationDuration={2000}
                     />
-                    <Line 
+                    <Line
                       yAxisId="visitors"
-                      type="monotone" 
-                      dataKey="uniqueVisitors" 
-                      stroke="var(--color-accent-blue)" 
+                      type="monotone"
+                      dataKey="uniqueVisitors"
+                      stroke="var(--color-accent-blue)"
                       strokeWidth={2}
                       dot={{ fill: 'var(--color-accent-blue)', strokeWidth: 2, r: 3 }}
                       animationDuration={2000}
                       animationDelay={500}
                     />
-                    <Bar 
+                    <Bar
                       yAxisId="visitors"
-                      dataKey="sessions" 
-                      fill="var(--color-accent-orange)" 
+                      dataKey="sessions"
+                      fill="var(--color-accent-orange)"
                       opacity={0.6}
                       animationDuration={1500}
                       animationDelay={1000}
@@ -341,7 +341,7 @@ export default function Analytics() {
                         <Cell key={`cell-${index}`} fill={entry.color} />
                       ))}
                     </Pie>
-                    <Tooltip 
+                    <Tooltip
                       contentStyle={{
                         backgroundColor: 'var(--color-surface)',
                         border: '1px solid var(--color-border)',
@@ -355,8 +355,8 @@ export default function Analytics() {
                   {trafficSources.map((source, index) => (
                     <div key={index} className="source-item">
                       <div className="source-info">
-                        <div 
-                          className="legend-color" 
+                        <div
+                          className="legend-color"
                           style={{ backgroundColor: source.color }}
                         ></div>
                         <span className="source-name">{source.name}</span>
@@ -385,7 +385,7 @@ export default function Analytics() {
                     <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" opacity={0.3} />
                     <XAxis type="number" stroke="var(--color-text-subdued)" fontSize={11} />
                     <YAxis type="category" dataKey="name" stroke="var(--color-text-subdued)" fontSize={11} />
-                    <Tooltip 
+                    <Tooltip
                       contentStyle={{
                         backgroundColor: 'var(--color-surface)',
                         border: '1px solid var(--color-border)',
@@ -393,8 +393,8 @@ export default function Analytics() {
                         color: 'var(--color-text)'
                       }}
                     />
-                    <Bar 
-                      dataKey="sessions" 
+                    <Bar
+                      dataKey="sessions"
                       fill="var(--color-primary)"
                       radius={[0, 4, 4, 0]}
                       animationDuration={1500}
@@ -418,9 +418,9 @@ export default function Analytics() {
                         <span className="geo-users">{country.users.toLocaleString()} users</span>
                       </div>
                       <div className="geo-bar-container">
-                        <div 
+                        <div
                           className="geo-bar"
-                          style={{ 
+                          style={{
                             width: `${country.percentage}%`,
                             backgroundColor: 'var(--color-primary)'
                           }}

@@ -7,7 +7,7 @@ const navigation = [
     name: 'Main',
     items: [
       { name: 'Dashboard', href: '/admin', icon: 'dashboard', current: false },
-      { name: 'Orders', href: '/admin/orders', icon: 'shopping-cart', current: false },
+      { name: 'Subscribers', href: '/admin/subscribers', icon: 'users', current: false },
     ]
   },
   {
@@ -21,10 +21,10 @@ const navigation = [
   {
     name: 'Business',
     items: [
-      { name: 'Subscribers', href: '/admin/subscribers', icon: 'users', current: false },
       { name: 'Plans', href: '/admin/plans', icon: 'credit-card', current: false },
       { name: 'Checkout Links', href: '/admin/checkout-links', icon: 'link', current: false },
       { name: 'Pricing Table', href: '/admin/pricing-table', icon: 'table', current: false },
+      { name: 'Chat with Customers', href: '/admin/support-messages', icon: 'message-circle', current: false },
     ]
   },
   {
@@ -50,21 +50,20 @@ const navigation = [
       { name: 'Storage', href: '/admin/storage', icon: 'hard-drive', current: false },
       { name: 'API Routes', href: '/admin/backend/routes', icon: 'code', current: false },
       { name: 'Server Logs', href: '/admin/backend/server-logs', icon: 'file-text', current: false },
+      { name: 'Integrations', href: '/admin/integrations', icon: 'zap', current: false },
     ]
   },
   {
     name: 'Development',
     items: [
-      { name: 'Integrations', href: '/admin/integrations', icon: 'zap', current: false },
+      { name: 'Connect Telegram', href: '/admin/telegram-bots', icon: 'message-square', current: false },
+      { name: 'Logs', href: '/admin/error-monitoring', icon: 'alert-triangle', current: false, badge: '3' },
     ]
   },
   {
     name: 'System',
     items: [
       { name: 'Platform Update', href: '/admin/platform-update', icon: 'refresh', current: false },
-      { name: 'Telegram Bots', href: '/admin/telegram-bots', icon: 'message-square', current: false },
-      { name: 'Support', href: '/admin/support-messages', icon: 'message-circle', current: false },
-      { name: 'Monitoring', href: '/admin/error-monitoring', icon: 'alert-triangle', current: false, badge: '3' },
       { name: 'Settings', href: '/admin/settings', icon: 'settings', current: false },
     ]
   }

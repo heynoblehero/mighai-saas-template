@@ -251,54 +251,12 @@ export default function AdminDashboard() {
           </div>
         </div>
 
-        {/* Main Stats */}
+        {/* Business Stats - Revenue, New Signups, New Customers, Total Views */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           <div className="bg-slate-800 border border-slate-700 rounded-xl p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-slate-400 text-sm">Total Pages</p>
-                <p className="text-3xl font-bold text-slate-100">{animatedPages}</p>
-              </div>
-              <div className="bg-emerald-500/10 p-3 rounded-lg">
-                <span className="text-emerald-400 text-xl">📄</span>
-              </div>
-            </div>
-            <div className="mt-4">
-              <div className="h-2 bg-slate-700 rounded-full overflow-hidden">
-                <div 
-                  className="h-full bg-emerald-500 rounded-full" 
-                  style={{ width: `${Math.min(100, (stats.pages / 50) * 100)}%` }}
-                ></div>
-              </div>
-              <p className="text-slate-400 text-xs mt-2">0% of capacity used</p>
-            </div>
-          </div>
-
-          <div className="bg-slate-800 border border-slate-700 rounded-xl p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-slate-400 text-sm">Subscribers</p>
-                <p className="text-3xl font-bold text-slate-100">{animatedSubscribers}</p>
-              </div>
-              <div className="bg-blue-500/10 p-3 rounded-lg">
-                <span className="text-blue-400 text-xl">👤</span>
-              </div>
-            </div>
-            <div className="mt-4">
-              <div className="h-2 bg-slate-700 rounded-full overflow-hidden">
-                <div 
-                  className="h-full bg-blue-500 rounded-full" 
-                  style={{ width: `${Math.min(100, (stats.subscribers / 100) * 100)}%` }}
-                ></div>
-              </div>
-              <p className="text-slate-400 text-xs mt-2">+12% from last week</p>
-            </div>
-          </div>
-
-          <div className="bg-slate-800 border border-slate-700 rounded-xl p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-slate-400 text-sm">Revenue</p>
+                <p className="text-slate-400 text-sm">Total Revenue</p>
                 <p className="text-3xl font-bold text-slate-100">${animatedRevenue.toLocaleString()}</p>
               </div>
               <div className="bg-purple-500/10 p-3 rounded-lg">
@@ -307,8 +265,8 @@ export default function AdminDashboard() {
             </div>
             <div className="mt-4">
               <div className="h-2 bg-slate-700 rounded-full overflow-hidden">
-                <div 
-                  className="h-full bg-purple-500 rounded-full" 
+                <div
+                  className="h-full bg-purple-500 rounded-full"
                   style={{ width: `${Math.min(100, (stats.revenue / 5000) * 100)}%` }}
                 ></div>
               </div>
@@ -319,21 +277,63 @@ export default function AdminDashboard() {
           <div className="bg-slate-800 border border-slate-700 rounded-xl p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-slate-400 text-sm">Pricing Plans</p>
-                <p className="text-3xl font-bold text-slate-100">{animatedPlans}</p>
+                <p className="text-slate-400 text-sm">New Signups</p>
+                <p className="text-3xl font-bold text-slate-100">{stats.subscribers}</p>
               </div>
-              <div className="bg-amber-500/10 p-3 rounded-lg">
-                <span className="text-amber-400 text-xl">📋</span>
+              <div className="bg-blue-500/10 p-3 rounded-lg">
+                <span className="text-blue-400 text-xl">👤</span>
               </div>
             </div>
             <div className="mt-4">
               <div className="h-2 bg-slate-700 rounded-full overflow-hidden">
-                <div 
-                  className="h-full bg-amber-500 rounded-full" 
-                  style={{ width: `${Math.min(100, (stats.plans / 10) * 100)}%` }}
+                <div
+                  className="h-full bg-blue-500 rounded-full"
+                  style={{ width: `${Math.min(100, (stats.subscribers / 100) * 100)}%` }}
                 ></div>
               </div>
-              <p className="text-slate-400 text-xs mt-2">Active plans</p>
+              <p className="text-slate-400 text-xs mt-2">+12% from last week</p>
+            </div>
+          </div>
+
+          <div className="bg-slate-800 border border-slate-700 rounded-xl p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-slate-400 text-sm">New Customers</p>
+                <p className="text-3xl font-bold text-slate-100">{stats.subscribers}</p>
+              </div>
+              <div className="bg-emerald-500/10 p-3 rounded-lg">
+                <span className="text-emerald-400 text-xl">👥</span>
+              </div>
+            </div>
+            <div className="mt-4">
+              <div className="h-2 bg-slate-700 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-emerald-500 rounded-full"
+                  style={{ width: `${Math.min(100, (stats.subscribers / 100) * 100)}%` }}
+                ></div>
+              </div>
+              <p className="text-slate-400 text-xs mt-2">+8% from last week</p>
+            </div>
+          </div>
+
+          <div className="bg-slate-800 border border-slate-700 rounded-xl p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-slate-400 text-sm">Total Views</p>
+                <p className="text-3xl font-bold text-slate-100">{stats.visitors}</p>
+              </div>
+              <div className="bg-amber-500/10 p-3 rounded-lg">
+                <span className="text-amber-400 text-xl">👁️</span>
+              </div>
+            </div>
+            <div className="mt-4">
+              <div className="h-2 bg-slate-700 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-amber-500 rounded-full"
+                  style={{ width: `${Math.min(100, (stats.visitors / 2000) * 100)}%` }}
+                ></div>
+              </div>
+              <p className="text-slate-400 text-xs mt-2">+18% from last week</p>
             </div>
           </div>
         </div>
