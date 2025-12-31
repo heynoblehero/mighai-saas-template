@@ -38,9 +38,7 @@ const navigation = [
   {
     name: 'Email',
     items: [
-      { name: 'Campaigns', href: '/admin/campaigns', icon: 'mail', current: false },
-      { name: 'Templates', href: '/admin/email-templates', icon: 'file-text', current: false },
-      { name: 'Email Settings', href: '/admin/email-settings', icon: 'mail-settings', current: false },
+      { name: 'Email Management', href: '/admin/email-management', icon: 'mail', current: false },
     ]
   },
   {

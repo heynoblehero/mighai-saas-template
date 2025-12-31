@@ -13,22 +13,10 @@ export default function AdminSettings() {
       icon: '📧',
       items: [
         {
-          title: 'Email Settings',
-          description: 'Configure SMTP, API keys, and sender information',
-          href: '/admin/email-settings',
-          action: 'Configure'
-        },
-        {
-          title: 'Email Templates',
-          description: 'Create and manage email templates for campaigns',
-          href: '/admin/email-templates',
-          action: 'Manage Templates'
-        },
-        {
-          title: 'Email Campaigns',
-          description: 'Create and manage email marketing campaigns',
-          href: '/admin/campaigns',
-          action: 'View Campaigns'
+          title: 'Email Management',
+          description: 'Configure email settings, templates, and campaigns',
+          href: '/admin/email-management',
+          action: 'Manage Email'
         }
       ]
     },

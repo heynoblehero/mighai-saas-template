@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import AdminLayout from '../../../components/AdminLayout';
+import AIPageBuilder from '../../../components/AIPageBuilder';
 import AIKeySetupModal from '../../../components/AIKeySetupModal';
 import apiKeyStorage from '../../../utils/apiKeyStorage';
 import conversationSync from '../../../utils/conversationSync';
@@ -1827,218 +1828,22 @@ ${currentSections.map(s => s.css).join('\n\n')}
 
         {/* AI Mode */}
         {mode === 'ai' && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-[calc(100vh-200px)]">
-            {/* AI Chat */}
-            <div className="bg-slate-800 border border-slate-700 rounded-xl shadow-xl overflow-hidden flex flex-col">
-              <div className="px-6 py-4 border-b border-slate-700 bg-slate-900/50">
-                <div className="flex items-center justify-between mb-2">
-                  <h3 className="text-lg font-semibold text-slate-200">🤖 Comprehensive AI Assistant</h3>
-
-                  {/* Provider Selector & Key Management */}
-                  <div className="flex items-center gap-3">
-                    {userApiKeys && (
-                      <select
-                        value={selectedProvider}
-                        onChange={(e) => setSelectedProvider(e.target.value)}
-                        disabled={isGenerating}
-                        className="px-3 py-1.5 text-sm bg-slate-700 text-slate-200 border border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:opacity-50"
-                      >
-                        {userApiKeys.claude && (
-                          <option value="claude">Claude Sonnet 4.5</option>
-                        )}
-                        {userApiKeys.gemini && (
-                          <option value="gemini">Gemini 2.0 Flash</option>
-                        )}
-                        {userApiKeys.openai && (
-                          <option value="openai">OpenAI GPT-4o</option>
-                        )}
-                      </select>
-                    )}
-                    <button
-                      onClick={() => setShowKeySetupModal(true)}
-                      className="px-3 py-1.5 text-sm bg-slate-700 text-slate-300 border border-slate-600 rounded-lg hover:bg-slate-600 transition-colors"
-                      title="Manage API Keys"
-                    >
-                      ⚙️ API Keys
-                    </button>
-                  </div>
-                </div>
-                <p className="text-sm text-slate-400">Upload a layout image or describe your page - I'll create a complete, professional page with all sections, animations, and styling</p>
-              </div>
-
-              <div className="flex-1 overflow-y-auto p-4 space-y-4">
-                {chatHistory.length === 0 && (
-                  <div className="text-center py-8">
-                    <div className="text-4xl mb-4">🎨✨</div>
-                    <h3 className="text-lg font-medium text-slate-200 mb-2">Ready to create something amazing!</h3>
-                    <p className="text-slate-400 text-sm mb-4">I can:</p>
-                    <ul className="text-slate-400 text-sm space-y-2 text-left max-w-md mx-auto">
-                      <li>📷 Analyze layout images and recreate the design</li>
-                      <li>🎯 Generate complete pages with all needed sections</li>
-                      <li>🎨 Create beautiful themes, colors, and animations</li>
-                      <li>✨ Add professional typography and spacing</li>
-                      <li>🚀 Build responsive, modern designs</li>
-                    </ul>
-
-                    {/* Image Upload Section */}
-                    <div className="mt-6 p-6 bg-slate-700/50 rounded-lg border-2 border-dashed border-slate-600">
-                      <input
-                        type="file"
-                        id="layoutImage"
-                        accept="image/*"
-                        onChange={handleImageUpload}
-                        className="hidden"
-                        disabled={isAnalyzingImage}
-                      />
-                      <label
-                        htmlFor="layoutImage"
-                        className="cursor-pointer flex flex-col items-center"
-                      >
-                        <div className="text-5xl mb-3">📸</div>
-                        <div className="text-slate-200 font-medium mb-1">Upload Layout Image (Optional)</div>
-                        <div className="text-slate-400 text-xs">Click to upload a screenshot or design</div>
-                      </label>
-                    </div>
-                  </div>
-                )}
-
-                {uploadedImage && (
-                  <div className="bg-slate-700/50 rounded-lg p-3 border border-slate-600">
-                    <div className="flex items-center space-x-3">
-                      <img
-                        src={uploadedImage.url}
-                        alt="Uploaded layout"
-                        className="w-20 h-20 object-cover rounded"
-                      />
-                      <div className="flex-1">
-                        <p className="text-sm text-slate-200 font-medium">Layout Reference</p>
-                        <p className="text-xs text-slate-400">{uploadedImage.filename}</p>
-                      </div>
-                      <button
-                        onClick={() => {
-                          setUploadedImage(null);
-                          setImageAnalysis(null);
-                        }}
-                        className="text-red-400 hover:text-red-300"
-                      >
-                        ✕
-                      </button>
-                    </div>
-                  </div>
-                )}
-
-                {chatHistory.map((message) => (
-                  <div key={message.id} className={`flex ${message.type === 'user' ? 'justify-end' : 'justify-start'}`}>
-                    <div className={`max-w-[80%] rounded-lg px-4 py-3 ${
-                      message.type === 'user'
-                        ? 'bg-emerald-600 text-white'
-                        : message.type === 'error'
-                        ? 'bg-red-900/20 border border-red-600/30 text-red-300'
-                        : message.type === 'plan'
-                        ? 'bg-purple-900/20 border border-purple-600/30 text-purple-200'
-                        : message.type === 'system'
-                        ? 'bg-blue-900/20 border border-blue-600/30 text-blue-200'
-                        : 'bg-slate-700 text-slate-200'
-                    }`}>
-                      <p className="text-sm whitespace-pre-wrap">{message.content}</p>
-                      <div className="text-xs text-slate-500 mt-1">
-                        {message.timestamp.toLocaleTimeString()}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-
-                {isAnalyzingImage && (
-                  <div className="flex justify-start">
-                    <div className="max-w-[80%] bg-blue-900/20 border border-blue-600/30 text-blue-200 rounded-lg px-4 py-3">
-                      <div className="flex items-center space-x-2">
-                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-400"></div>
-                        <span className="text-sm">Analyzing layout image...</span>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {isGenerating && (
-                  <div className="flex justify-start">
-                    <div className="max-w-[80%] bg-slate-700 text-slate-200 rounded-lg px-4 py-3">
-                      <div className="flex items-center space-x-2">
-                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-emerald-600"></div>
-                        <span className="text-sm">🧠 Planning and building your comprehensive page...</span>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                <div ref={chatEndRef} />
-              </div>
-
-              <div className="border-t border-slate-700 p-4">
-                {/* Image Upload Button */}
-                {chatHistory.length > 0 && !uploadedImage && (
-                  <div className="mb-3">
-                    <input
-                      type="file"
-                      id="layoutImageChat"
-                      accept="image/*"
-                      onChange={handleImageUpload}
-                      className="hidden"
-                      disabled={isAnalyzingImage}
-                    />
-                    <label
-                      htmlFor="layoutImageChat"
-                      className="cursor-pointer inline-flex items-center space-x-2 px-4 py-2 bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded-lg text-slate-200 text-sm transition-colors"
-                    >
-                      <span>📷</span>
-                      <span>Upload Layout Image</span>
-                    </label>
-                  </div>
-                )}
-
-                <form onSubmit={handleAISubmit} className="flex space-x-3">
-                  <input
-                    type="text"
-                    value={currentPrompt}
-                    onChange={(e) => setCurrentPrompt(e.target.value)}
-                    placeholder="Describe your page in detail..."
-                    className="flex-1 px-4 py-3 bg-slate-700 border border-slate-600 rounded-lg text-slate-200 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                    disabled={isGenerating || isAnalyzingImage}
-                  />
-                  <button
-                    type="submit"
-                    disabled={isGenerating || isAnalyzingImage || !currentPrompt.trim()}
-                    className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-3 rounded-lg font-medium transition-colors disabled:opacity-50"
-                  >
-                    {isGenerating ? '⏳' : '🚀'}
-                  </button>
-                </form>
-              </div>
-            </div>
-
-            {/* Preview */}
-            <div className="bg-slate-800 border border-slate-700 rounded-xl overflow-hidden flex flex-col">
-              <div className="px-6 py-4 border-b border-slate-700 bg-slate-900/50">
-                <h3 className="text-lg font-semibold text-slate-200">👁️ Live Preview</h3>
-              </div>
-              <div className="flex-1 bg-white">
-                {pageData.html_content ? (
-                  <iframe
-                    key={previewKey}
-                    srcDoc={getPreviewContent()}
-                    className="w-full h-full border-0"
-                    sandbox="allow-scripts allow-forms allow-modals"
-                    title="Page Preview"
-                  />
-                ) : (
-                  <div className="flex items-center justify-center h-full text-slate-500">
-                    <div className="text-center">
-                      <div className="text-6xl mb-4">📄</div>
-                      <p>Preview will appear here</p>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
+          <div className="h-[calc(100vh-200px)]">
+            <AIPageBuilder
+              onPageGenerated={(pageData) => {
+                setPageData(prev => ({
+                  ...prev,
+                  html_content: pageData.html || pageData.html_content || '',
+                  css_content: pageData.css || pageData.css_content || '',
+                  js_content: pageData.js || pageData.js_content || ''
+                }));
+                setPreviewKey(prev => prev + 1);
+              }}
+              initialPageData={null}
+              mode="page"
+              pageType={null}
+              onShowKeySetup={() => setShowKeySetupModal(true)}
+            />
           </div>
         )}
 

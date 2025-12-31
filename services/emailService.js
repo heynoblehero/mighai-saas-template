@@ -22,12 +22,13 @@ const dbPath = path.join(__dirname, '..', 'site_builder.db');
 
 class EmailService {
   constructor() {
+    // Initialize database tables once at startup
     this.initDatabase();
   }
 
   initDatabase() {
     const db = new sqlite3.Database(dbPath);
-    
+
     // Create email_settings table
     db.run(`
       CREATE TABLE IF NOT EXISTS email_settings (
@@ -127,7 +128,8 @@ class EmailService {
 
     // Insert default email templates
     this.insertDefaultTemplates(db);
-    
+
+    // Close the database connection after initialization
     db.close();
   }
 

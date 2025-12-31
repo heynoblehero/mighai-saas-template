@@ -187,6 +187,10 @@ export default function SimpleAIChat({
         return;
       }
 
+      // Prepare image attachments for API request
+      const imageAttachments = attachments.filter(attachment => attachment.type.startsWith('image/'));
+      const otherAttachments = attachments.filter(attachment => !attachment.type.startsWith('image/'));
+
       // Determine which endpoint to use based on whether user has provided an API key
       const hasUserKey = !!apiKey;
       const endpoint = hasUserKey
@@ -197,7 +201,15 @@ export default function SimpleAIChat({
         userPrompt: content,
         provider: selectedProvider,
         conversationHistory: getActiveConversation()?.messages || [],
-        conversationId: activeConversationId
+        conversationId: activeConversationId,
+        imageAttachments: imageAttachments.map(img => ({
+          id: img.id,
+          name: img.name,
+          type: img.type,
+          size: img.size,
+          preview: img.preview // This would be the base64 data URL
+        })),
+        otherAttachments: otherAttachments
       };
 
       // Only include user API key if available
@@ -258,7 +270,7 @@ export default function SimpleAIChat({
         // Update local state
         setCurrentConversation(prev => ({
           ...prev,
-          messages: [...(prev?.messages || []), ...(data.plan ? [{...planMessage}] : []), aiMessage]
+          messages: [...(prev?.messages || []), ...(data.plan ? [planMessage] : []), aiMessage]
         }));
       } else if (data.needsKeyReconfiguration) {
         // API key is invalid - prompt user to reconfigure

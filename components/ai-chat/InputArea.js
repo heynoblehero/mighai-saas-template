@@ -45,38 +45,56 @@ export default function InputArea({
     setIsUploading(true);
 
     try {
-      const uploadedFiles = [];
+      const processedFiles = [];
 
       for (const file of files) {
-        // Create FormData
-        const formData = new FormData();
-        formData.append('file', file);
+        if (file.type.startsWith('image/')) {
+          // For images, create a preview and add to attachments
+          const preview = await new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result);
+            reader.onerror = reject;
+            reader.readAsDataURL(file);
+          });
 
-        // Upload file
-        const response = await fetch('/api/upload-chat-file', {
-          method: 'POST',
-          body: formData
-        });
-
-        if (response.ok) {
-          const data = await response.json();
-          uploadedFiles.push({
-            id: data.id,
+          processedFiles.push({
+            id: `img_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
             name: file.name,
             type: file.type,
             size: file.size,
-            url: data.url,
-            extractedText: data.extractedText || ''
+            preview: preview, // Store the preview URL
+            file: file // Keep reference to the actual file
           });
         } else {
-          console.error(`Failed to upload ${file.name}`);
+          // For other files, upload to server
+          const formData = new FormData();
+          formData.append('file', file);
+
+          const response = await fetch('/api/upload-chat-file', {
+            method: 'POST',
+            body: formData
+          });
+
+          if (response.ok) {
+            const data = await response.json();
+            processedFiles.push({
+              id: data.id,
+              name: file.name,
+              type: file.type,
+              size: file.size,
+              url: data.url,
+              extractedText: data.extractedText || ''
+            });
+          } else {
+            console.error(`Failed to upload ${file.name}`);
+          }
         }
       }
 
-      setAttachedFiles((prev) => [...prev, ...uploadedFiles]);
+      setAttachedFiles((prev) => [...prev, ...processedFiles]);
     } catch (error) {
-      console.error('File upload error:', error);
-      alert('Failed to upload files. Please try again.');
+      console.error('File processing error:', error);
+      alert('Failed to process files. Please try again.');
     } finally {
       setIsUploading(false);
       if (fileInputRef.current) {
@@ -96,11 +114,34 @@ export default function InputArea({
         <div className="px-6 py-3 border-b border-slate-700 bg-slate-800/50">
           <div className="flex flex-wrap gap-2">
             {attachedFiles.map((file, index) => (
-              <AttachmentChip
-                key={`${file.id || index}`}
-                file={file}
-                onRemove={() => removeAttachment(index)}
-              />
+              file.type.startsWith('image/') ? (
+                // Special handling for image attachments
+                <div key={file.id} className="relative group">
+                  <div className="bg-slate-700/50 border border-slate-600 rounded-lg p-2 flex items-center">
+                    <img
+                      src={file.preview}
+                      alt={file.name}
+                      className="w-16 h-16 object-cover rounded border border-slate-500"
+                    />
+                    <div className="ml-2 max-w-[120px] truncate text-xs text-slate-300">
+                      {file.name}
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => removeAttachment(index)}
+                    className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs opacity-0 group-hover:opacity-100 transition-opacity bg-slate-700 hover:bg-slate-600 border border-slate-500"
+                  >
+                    ×
+                  </button>
+                </div>
+              ) : (
+                // Standard file attachment
+                <AttachmentChip
+                  key={file.id}
+                  file={file}
+                  onRemove={() => removeAttachment(index)}
+                />
+              )
             ))}
           </div>
         </div>

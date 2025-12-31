@@ -20,6 +20,9 @@ const fs = require('fs');
 const { lemonSqueezySetup, createCheckout, getProduct, getVariant, listProducts, listVariants } = require('@lemonsqueezy/lemonsqueezy.js');
 const crypto = require('crypto');
 
+// Email service initialization
+const emailService = require('./services/emailService');
+
 // Simple encryption for OAuth tokens (in production, use a proper encryption library)
 const encryptToken = (token) => {
   const algorithm = 'aes-256-cbc';

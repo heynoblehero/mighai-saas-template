@@ -19,7 +19,8 @@ export default async function handler(req, res) {
     layoutAnalysis = null,
     pageType = null,
     conversationHistory = [],
-    attachments = []
+    imageAttachments = [],
+    otherAttachments = []
   } = req.body;
 
   if (!provider || !userApiKey || !userPrompt) {
