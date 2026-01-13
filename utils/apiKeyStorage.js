@@ -1,20 +1,61 @@
 /**
  * LocalStorage utility for managing user's AI provider API keys
- * Keys are obfuscated (not encrypted) using Base64 encoding
+ * Supports only Claude (Anthropic) and Gemini (Google)
+ * Keys are obfuscated using Base64 encoding and stored ONLY in browser
  */
 
 const API_KEYS_STORAGE_KEY = 'ai_provider_keys';
 const API_PROVIDER_PREFERENCE_KEY = 'preferred_ai_provider';
+const SELECTED_MODEL_KEY = 'selected_ai_model';
+
+// Available providers and their models
+export const AI_PROVIDERS = {
+  claude: {
+    name: 'Claude',
+    company: 'Anthropic',
+    icon: '🟠',
+    color: 'orange',
+    models: [
+      { id: 'claude-sonnet-4-5-20250929', name: 'Sonnet 4.5', description: 'Best for code generation' },
+      { id: 'claude-3-5-sonnet-latest', name: 'Sonnet 3.5', description: 'Fast and capable' },
+      { id: 'claude-3-haiku-20240307', name: 'Haiku 3', description: 'Fastest, lower cost' }
+    ],
+    keyPrefix: 'sk-ant-',
+    placeholder: 'sk-ant-api03-...',
+    helpUrl: 'https://console.anthropic.com/'
+  },
+  gemini: {
+    name: 'Gemini',
+    company: 'Google',
+    icon: '🔵',
+    color: 'blue',
+    models: [
+      { id: 'gemini-2.0-flash', name: '2.0 Flash', description: 'FREE - Fast responses' },
+      { id: 'gemini-1.5-pro', name: '1.5 Pro', description: 'Higher quality, paid' },
+      { id: 'gemini-1.5-flash', name: '1.5 Flash', description: 'Balanced speed/quality' }
+    ],
+    keyPrefix: 'AIza',
+    placeholder: 'AIza...',
+    helpUrl: 'https://aistudio.google.com/app/apikey'
+  }
+};
 
 export const apiKeyStorage = {
   /**
    * Save API keys to localStorage (obfuscated with Base64)
-   * @param {Object} keys - Object with provider keys { claude: 'sk-...', gemini: '...', openai: '...' }
+   * @param {Object} keys - Object with provider keys { claude: 'sk-...', gemini: '...' }
    */
   saveKeys: (keys) => {
     try {
-      // Obfuscate keys with Base64 (not true encryption, but prevents casual viewing)
-      const obfuscated = btoa(JSON.stringify(keys));
+      // Filter to only supported providers
+      const filteredKeys = {};
+      Object.keys(keys).forEach(provider => {
+        if (AI_PROVIDERS[provider] && keys[provider]) {
+          filteredKeys[provider] = keys[provider];
+        }
+      });
+
+      const obfuscated = btoa(JSON.stringify(filteredKeys));
       localStorage.setItem(API_KEYS_STORAGE_KEY, obfuscated);
       return true;
     } catch (error) {
@@ -32,7 +73,6 @@ export const apiKeyStorage = {
       const stored = localStorage.getItem(API_KEYS_STORAGE_KEY);
       if (!stored) return null;
 
-      // Deobfuscate from Base64
       const deobfuscated = atob(stored);
       return JSON.parse(deobfuscated);
     } catch (error) {
@@ -43,11 +83,15 @@ export const apiKeyStorage = {
 
   /**
    * Update a single provider's API key
-   * @param {string} provider - 'claude', 'gemini', or 'openai'
+   * @param {string} provider - 'claude' or 'gemini'
    * @param {string} key - API key
    */
   updateProvider: (provider, key) => {
     try {
+      if (!AI_PROVIDERS[provider]) {
+        console.error(`[API Key Storage] Unknown provider: ${provider}`);
+        return false;
+      }
       const keys = apiKeyStorage.getKeys() || {};
       keys[provider] = key;
       return apiKeyStorage.saveKeys(keys);
@@ -59,7 +103,7 @@ export const apiKeyStorage = {
 
   /**
    * Get API key for a specific provider
-   * @param {string} provider - 'claude', 'gemini', or 'openai'
+   * @param {string} provider - 'claude' or 'gemini'
    * @returns {string|null} - API key or null
    */
   getProviderKey: (provider) => {
@@ -74,6 +118,7 @@ export const apiKeyStorage = {
     try {
       localStorage.removeItem(API_KEYS_STORAGE_KEY);
       localStorage.removeItem(API_PROVIDER_PREFERENCE_KEY);
+      localStorage.removeItem(SELECTED_MODEL_KEY);
       return true;
     } catch (error) {
       console.error('[API Key Storage] Error clearing keys:', error);
@@ -98,12 +143,14 @@ export const apiKeyStorage = {
     const keys = apiKeyStorage.getKeys();
     if (!keys) return [];
 
-    return Object.keys(keys).filter(provider => keys[provider] && keys[provider].length > 0);
+    return Object.keys(keys).filter(provider =>
+      AI_PROVIDERS[provider] && keys[provider] && keys[provider].length > 0
+    );
   },
 
   /**
    * Check if a specific provider is configured
-   * @param {string} provider - 'claude', 'gemini', or 'openai'
+   * @param {string} provider - 'claude' or 'gemini'
    * @returns {boolean}
    */
   isProviderConfigured: (provider) => {
@@ -113,10 +160,11 @@ export const apiKeyStorage = {
 
   /**
    * Save preferred provider
-   * @param {string} provider - 'claude', 'gemini', or 'openai'
+   * @param {string} provider - 'claude' or 'gemini'
    */
   savePreferredProvider: (provider) => {
     try {
+      if (!AI_PROVIDERS[provider]) return false;
       localStorage.setItem(API_PROVIDER_PREFERENCE_KEY, provider);
       return true;
     } catch (error) {
@@ -131,18 +179,51 @@ export const apiKeyStorage = {
    */
   getPreferredProvider: () => {
     try {
-      // First try to get saved preference
       const preferred = localStorage.getItem(API_PROVIDER_PREFERENCE_KEY);
       if (preferred && apiKeyStorage.isProviderConfigured(preferred)) {
         return preferred;
       }
 
-      // Otherwise return first configured provider
       const configured = apiKeyStorage.getConfiguredProviders();
       return configured.length > 0 ? configured[0] : null;
     } catch (error) {
       console.error('[API Key Storage] Error getting preferred provider:', error);
       return null;
+    }
+  },
+
+  /**
+   * Save selected model for a provider
+   * @param {string} provider - Provider name
+   * @param {string} modelId - Model ID
+   */
+  saveSelectedModel: (provider, modelId) => {
+    try {
+      const models = JSON.parse(localStorage.getItem(SELECTED_MODEL_KEY) || '{}');
+      models[provider] = modelId;
+      localStorage.setItem(SELECTED_MODEL_KEY, JSON.stringify(models));
+      return true;
+    } catch (error) {
+      console.error('[API Key Storage] Error saving selected model:', error);
+      return false;
+    }
+  },
+
+  /**
+   * Get selected model for a provider (or default)
+   * @param {string} provider - Provider name
+   * @returns {string} - Model ID
+   */
+  getSelectedModel: (provider) => {
+    try {
+      const models = JSON.parse(localStorage.getItem(SELECTED_MODEL_KEY) || '{}');
+      if (models[provider]) return models[provider];
+
+      // Return default model for provider
+      const providerInfo = AI_PROVIDERS[provider];
+      return providerInfo?.models[0]?.id || null;
+    } catch (error) {
+      return AI_PROVIDERS[provider]?.models[0]?.id || null;
     }
   },
 
@@ -158,40 +239,53 @@ export const apiKeyStorage = {
     }
 
     const trimmedKey = key.trim();
+    const providerInfo = AI_PROVIDERS[provider];
+
+    if (!providerInfo) {
+      return { valid: false, error: `Unknown provider: ${provider}` };
+    }
 
     switch (provider) {
       case 'claude':
-        // Claude keys start with 'sk-ant-'
         if (!trimmedKey.startsWith('sk-ant-')) {
-          return { valid: false, error: 'Claude API keys should start with "sk-ant-"' };
+          return { valid: false, error: 'Claude API keys must start with "sk-ant-"' };
         }
-        if (trimmedKey.length < 20) {
-          return { valid: false, error: 'Claude API key appears too short' };
+        if (trimmedKey.length < 40) {
+          return { valid: false, error: 'Claude API key appears too short (should be 90+ characters)' };
         }
         break;
 
       case 'gemini':
-        // Gemini keys are typically 39 characters
-        if (trimmedKey.length < 20) {
-          return { valid: false, error: 'Gemini API key appears too short' };
+        if (!trimmedKey.startsWith('AIza')) {
+          return { valid: false, error: 'Gemini API keys must start with "AIza"' };
         }
-        break;
-
-      case 'openai':
-        // OpenAI keys start with 'sk-'
-        if (!trimmedKey.startsWith('sk-')) {
-          return { valid: false, error: 'OpenAI API keys should start with "sk-"' };
-        }
-        if (trimmedKey.length < 20) {
-          return { valid: false, error: 'OpenAI API key appears too short' };
+        if (trimmedKey.length !== 39) {
+          return { valid: false, error: 'Gemini API keys should be exactly 39 characters' };
         }
         break;
 
       default:
-        return { valid: false, error: 'Unknown provider' };
+        return { valid: false, error: `Unsupported provider: ${provider}` };
     }
 
     return { valid: true, error: null };
+  },
+
+  /**
+   * Get provider info
+   * @param {string} provider - Provider key
+   * @returns {Object|null} - Provider info object
+   */
+  getProviderInfo: (provider) => {
+    return AI_PROVIDERS[provider] || null;
+  },
+
+  /**
+   * Get all available providers
+   * @returns {Object} - All providers info
+   */
+  getAllProviders: () => {
+    return AI_PROVIDERS;
   },
 
   /**
@@ -200,26 +294,18 @@ export const apiKeyStorage = {
    * @returns {string} - Human-readable provider name
    */
   getProviderDisplayName: (provider) => {
-    const names = {
-      claude: 'Claude (Anthropic)',
-      gemini: 'Gemini (Google)',
-      openai: 'OpenAI'
-    };
-    return names[provider] || provider;
+    const info = AI_PROVIDERS[provider];
+    return info ? `${info.name} (${info.company})` : provider;
   },
 
   /**
-   * Get provider model name
+   * Get default model for provider
    * @param {string} provider - Provider key
-   * @returns {string} - Model name
+   * @returns {string} - Default model name
    */
-  getProviderModel: (provider) => {
-    const models = {
-      claude: 'Claude Sonnet 4.5',
-      gemini: 'Gemini 2.0 Flash',
-      openai: 'GPT-4o'
-    };
-    return models[provider] || 'Unknown Model';
+  getDefaultModel: (provider) => {
+    const info = AI_PROVIDERS[provider];
+    return info?.models[0]?.name || 'Unknown Model';
   }
 };
 

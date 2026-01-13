@@ -80,7 +80,7 @@ export default function NewEnhancedPage() {
     };
   }, []);
 
-  // Component Templates
+  // Component Templates - Dark theme with emerald accents
   const componentTemplates = {
     hero: {
       name: 'Hero Section',
@@ -93,34 +93,56 @@ export default function NewEnhancedPage() {
   </div>
 </section>`,
       css: `.hero-section {
-  padding: 100px 20px;
+  padding: 120px 20px;
   text-align: center;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
+  background: linear-gradient(135deg, #111111 0%, #1a1a1a 100%);
+  color: #f0f0f0;
+  position: relative;
+  overflow: hidden;
+}
+.hero-section::before {
+  content: '';
+  position: absolute;
+  width: 600px;
+  height: 600px;
+  background: radial-gradient(circle, rgba(0, 208, 132, 0.15) 0%, transparent 70%);
+  top: -300px;
+  right: -300px;
+  border-radius: 50%;
 }
 .hero-section h1 {
-  font-size: 3rem;
-  margin-bottom: 1rem;
-  font-weight: bold;
+  font-size: 3.5rem;
+  margin-bottom: 1.5rem;
+  font-weight: 700;
+  background: linear-gradient(135deg, #f0f0f0 0%, #b5b5b5 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  position: relative;
 }
 .hero-section .subtitle {
   font-size: 1.25rem;
-  margin-bottom: 2rem;
-  opacity: 0.9;
+  margin-bottom: 2.5rem;
+  color: #b5b5b5;
+  max-width: 600px;
+  margin-left: auto;
+  margin-right: auto;
 }
 .cta-button {
-  background: white;
-  color: #667eea;
-  padding: 15px 40px;
+  background: #00d084;
+  color: #ffffff;
+  padding: 16px 48px;
   border: none;
-  border-radius: 50px;
-  font-size: 1.1rem;
+  border-radius: 6px;
+  font-size: 1rem;
   font-weight: 600;
   cursor: pointer;
-  transition: transform 0.2s;
+  transition: all 200ms ease;
+  box-shadow: 0 0 20px rgba(0, 208, 132, 0.3);
 }
 .cta-button:hover {
-  transform: scale(1.05);
+  background: #00b372;
+  transform: translateY(-2px);
+  box-shadow: 0 0 30px rgba(0, 208, 132, 0.4);
 }`
     },
     features: {
@@ -149,13 +171,14 @@ export default function NewEnhancedPage() {
   </div>
 </section>`,
       css: `.features-section {
-  padding: 80px 20px;
-  background: #f8f9fa;
+  padding: 100px 20px;
+  background: #111111;
 }
 .features-section h2 {
   text-align: center;
   font-size: 2.5rem;
   margin-bottom: 3rem;
+  color: #f0f0f0;
 }
 .features-grid {
   display: grid;
@@ -165,15 +188,18 @@ export default function NewEnhancedPage() {
   margin: 0 auto;
 }
 .feature-card {
-  background: white;
+  background: #1a1a1a;
   padding: 2rem;
   border-radius: 12px;
   text-align: center;
-  box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-  transition: transform 0.2s;
+  border: 1px solid #303030;
+  box-shadow: 0 0 0 1px rgba(255,255,255,0.05), 0 4px 6px rgba(0,0,0,0.4);
+  transition: all 200ms ease;
 }
 .feature-card:hover {
   transform: translateY(-5px);
+  border-color: #00d084;
+  box-shadow: 0 0 20px rgba(0, 208, 132, 0.15);
 }
 .feature-icon {
   font-size: 3rem;
@@ -182,9 +208,10 @@ export default function NewEnhancedPage() {
 .feature-card h3 {
   font-size: 1.5rem;
   margin-bottom: 0.5rem;
+  color: #f0f0f0;
 }
 .feature-card p {
-  color: #666;
+  color: #b5b5b5;
 }`
     },
     pricing: {
@@ -229,12 +256,14 @@ export default function NewEnhancedPage() {
   </div>
 </section>`,
       css: `.pricing-section {
-  padding: 80px 20px;
+  padding: 100px 20px;
+  background: #111111;
 }
 .pricing-section h2 {
   text-align: center;
   font-size: 2.5rem;
   margin-bottom: 3rem;
+  color: #f0f0f0;
 }
 .pricing-grid {
   display: grid;
@@ -244,47 +273,51 @@ export default function NewEnhancedPage() {
   margin: 0 auto;
 }
 .pricing-card {
-  background: white;
+  background: #1a1a1a;
   padding: 2.5rem;
   border-radius: 12px;
-  border: 2px solid #e0e0e0;
+  border: 1px solid #303030;
   text-align: center;
   position: relative;
-  transition: all 0.3s;
+  transition: all 200ms ease;
 }
 .pricing-card:hover {
   transform: translateY(-10px);
-  box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+  box-shadow: 0 0 0 1px rgba(255,255,255,0.05), 0 10px 30px rgba(0,0,0,0.4);
 }
 .pricing-card.featured {
-  border-color: #667eea;
+  border-color: #00d084;
   transform: scale(1.05);
+  box-shadow: 0 0 30px rgba(0, 208, 132, 0.2);
 }
 .badge {
   position: absolute;
   top: -15px;
   left: 50%;
   transform: translateX(-50%);
-  background: #667eea;
-  color: white;
-  padding: 5px 20px;
-  border-radius: 20px;
-  font-size: 0.875rem;
+  background: #00d084;
+  color: #111111;
+  padding: 6px 24px;
+  border-radius: 9999px;
+  font-size: 0.75rem;
   font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
 .pricing-card h3 {
   font-size: 1.75rem;
   margin-bottom: 1rem;
+  color: #f0f0f0;
 }
 .price {
   font-size: 3rem;
   font-weight: bold;
-  color: #667eea;
+  color: #00d084;
   margin-bottom: 1.5rem;
 }
 .price span {
   font-size: 1.25rem;
-  color: #666;
+  color: #8a8a8a;
 }
 .features-list {
   list-style: none;
@@ -294,21 +327,23 @@ export default function NewEnhancedPage() {
 }
 .features-list li {
   padding: 0.75rem 0;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid #303030;
+  color: #b5b5b5;
 }
 .plan-button {
   width: 100%;
-  background: #667eea;
-  color: white;
-  padding: 12px;
+  background: #00d084;
+  color: #111111;
+  padding: 14px;
   border: none;
-  border-radius: 8px;
+  border-radius: 6px;
   font-weight: 600;
   cursor: pointer;
-  transition: background 0.2s;
+  transition: all 200ms ease;
 }
 .plan-button:hover {
-  background: #5568d3;
+  background: #00b372;
+  transform: translateY(-2px);
 }`
     },
     contact: {
@@ -328,13 +363,14 @@ export default function NewEnhancedPage() {
   </div>
 </section>`,
       css: `.contact-section {
-  padding: 80px 20px;
-  background: #f8f9fa;
+  padding: 100px 20px;
+  background: #1a1a1a;
 }
 .contact-section h2 {
   text-align: center;
   font-size: 2.5rem;
   margin-bottom: 3rem;
+  color: #f0f0f0;
 }
 .contact-form {
   max-width: 600px;
@@ -349,31 +385,39 @@ export default function NewEnhancedPage() {
 .contact-form input,
 .contact-form textarea {
   width: 100%;
-  padding: 15px;
-  border: 2px solid #e0e0e0;
-  border-radius: 8px;
+  padding: 16px;
+  background: #111111;
+  border: 1px solid #303030;
+  border-radius: 6px;
   font-size: 1rem;
-  transition: border-color 0.2s;
+  color: #f0f0f0;
+  transition: all 200ms ease;
+}
+.contact-form input::placeholder,
+.contact-form textarea::placeholder {
+  color: #6a6a6a;
 }
 .contact-form input:focus,
 .contact-form textarea:focus {
   outline: none;
-  border-color: #667eea;
+  border-color: #00d084;
+  box-shadow: 0 0 0 3px rgba(0, 208, 132, 0.1);
 }
 .submit-button {
   width: 100%;
-  background: #667eea;
-  color: white;
-  padding: 15px;
+  background: #00d084;
+  color: #111111;
+  padding: 16px;
   border: none;
-  border-radius: 8px;
-  font-size: 1.1rem;
+  border-radius: 6px;
+  font-size: 1rem;
   font-weight: 600;
   cursor: pointer;
-  transition: background 0.2s;
+  transition: all 200ms ease;
 }
 .submit-button:hover {
-  background: #5568d3;
+  background: #00b372;
+  transform: translateY(-2px);
 }`
     },
     testimonials: {
@@ -1420,6 +1464,20 @@ export default function NewEnhancedPage() {
   const updatePageData = (currentSections) => {
     const html = currentSections.map(s => s.html).join('\n\n');
     const css = `
+/* Dark theme with emerald accents - Base styles */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
+:root {
+  --color-primary: #00d084;
+  --color-primary-hover: #00b372;
+  --color-bg: #111111;
+  --color-surface: #1a1a1a;
+  --color-text: #f0f0f0;
+  --color-text-secondary: #b5b5b5;
+  --color-border: #303030;
+  --font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
 * {
   margin: 0;
   padding: 0;
@@ -1427,14 +1485,26 @@ export default function NewEnhancedPage() {
 }
 
 body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+  font-family: var(--font-family);
   line-height: 1.6;
+  background: var(--color-bg);
+  color: var(--color-text);
 }
 
 .container {
   max-width: 1200px;
   margin: 0 auto;
-  padding: 0 20px;
+  padding: 0 24px;
+}
+
+a {
+  color: var(--color-primary);
+  text-decoration: none;
+  transition: color 200ms ease;
+}
+
+a:hover {
+  color: var(--color-primary-hover);
 }
 
 ${currentSections.map(s => s.css).join('\n\n')}

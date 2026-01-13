@@ -1,10 +1,12 @@
 import sqlite3 from 'sqlite3';
 import path from 'path';
 import { VM } from 'vm2';
+import { DATABASE_URL } from '@/lib/config';
+import { getSession } from '@/lib/session.js';
+import { validateApiKeyAuth, updateApiKeyLastUsed } from '@/lib/api-keys.js';
 
-const dbPath = process.env.NODE_ENV === 'production'
-  ? '/tmp/site_builder.db'
-  : path.join(process.cwd(), '..', 'mighai (copy)', 'site_builder.db');
+// Extract the database path from the DATABASE_URL
+const dbPath = DATABASE_URL.replace('sqlite:', '');
 
 export default async function handler(req, res) {
   const { slug } = req.query;
@@ -39,7 +41,50 @@ export default async function handler(req, res) {
 
       // Check plan-based access control
       const planAccess = route.plan_access || 'public';
-      const userId = req.session?.passport?.user;
+      let userId = null;
+      let authMethod = 'none';
+      let apiKeyId = null;
+
+      // Check for API key authentication first (for programmatic access)
+      const apiKeyResult = await validateApiKeyAuth(req);
+      if (apiKeyResult.authenticated) {
+        userId = apiKeyResult.user.id;
+        authMethod = 'api_key';
+        apiKeyId = apiKeyResult.keyId;
+
+        // Check if this route allows API key access
+        if (!route.allow_api_key_access) {
+          db.close();
+          return res.status(403).json({
+            error: 'API key access not enabled',
+            message: 'This route does not allow API key authentication. Contact the admin to enable it.'
+          });
+        }
+
+        // Check API credit limit for API key users
+        const userCredits = await getUserApiCredits(db, userId);
+        if (userCredits.api_limit > 0 && userCredits.api_calls_used >= userCredits.api_limit) {
+          db.close();
+          return res.status(429).json({
+            error: 'API credit limit exceeded',
+            used: userCredits.api_calls_used,
+            limit: userCredits.api_limit,
+            message: 'You have exhausted your API credits. Please upgrade your plan or contact support.'
+          });
+        }
+      }
+
+      // Fall back to session token authentication (for browser-based access)
+      if (!userId) {
+        const sessionToken = req.cookies?.session_token;
+        if (sessionToken) {
+          const session = await getSession(sessionToken);
+          if (session && session.user) {
+            userId = session.user.id;
+            authMethod = 'session';
+          }
+        }
+      }
 
       if (planAccess === 'any_subscriber' || planAccess === 'paid_only') {
         // Requires authentication
@@ -47,7 +92,7 @@ export default async function handler(req, res) {
           db.close();
           return res.status(401).json({
             error: 'Authentication required',
-            message: 'This route requires authentication. Please log in.'
+            message: 'This route requires authentication. Please log in or provide an API key.'
           });
         }
 
@@ -78,17 +123,20 @@ export default async function handler(req, res) {
 
       // Check rate limiting if configured
       if (route.rate_limit_per_day) {
-        const userId = req.session?.passport?.user || null;
         const ipAddress = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
 
         // Check usage in last 24 hours
-        const checkQuery = `
-          SELECT COUNT(*) as count
-          FROM custom_route_usage
-          WHERE route_id = ?
-            AND ${userId ? 'user_id = ?' : 'ip_address = ?'}
-            AND called_at > datetime('now', '-1 day')
-        `;
+        const checkQuery = userId
+          ? `SELECT COUNT(*) as count
+             FROM custom_route_usage
+             WHERE route_id = ?
+               AND user_id = ?
+               AND called_at > datetime('now', '-1 day')`
+          : `SELECT COUNT(*) as count
+             FROM custom_route_usage
+             WHERE route_id = ?
+               AND ip_address = ?
+               AND called_at > datetime('now', '-1 day')`;
 
         const checkParams = userId ? [route.id, userId] : [route.id, ipAddress];
 
@@ -247,6 +295,21 @@ export default async function handler(req, res) {
           [route.id]
         );
 
+        // Deduct API credit and update last used timestamp if authenticated via API key
+        if (authMethod === 'api_key' && userId && apiKeyId) {
+          db.run(
+            'UPDATE users SET api_calls_used = api_calls_used + 1 WHERE id = ?',
+            [userId],
+            (err) => {
+              if (err) console.error('Error updating API credits:', err);
+            }
+          );
+          // Update API key last used timestamp (async, don't wait)
+          updateApiKeyLastUsed(apiKeyId).catch(err => {
+            console.error('Error updating API key last used:', err);
+          });
+        }
+
         // Log the execution
         db.run(
           `INSERT INTO api_route_logs
@@ -310,4 +373,26 @@ export default async function handler(req, res) {
       }
     }
   );
+}
+
+/**
+ * Helper function to get user's API credits and limit
+ * @param {object} db - SQLite database connection
+ * @param {number} userId - User ID
+ * @returns {Promise<{api_calls_used: number, api_limit: number}>}
+ */
+function getUserApiCredits(db, userId) {
+  return new Promise((resolve, reject) => {
+    db.get(
+      `SELECT u.api_calls_used, COALESCE(p.api_limit, 0) as api_limit
+       FROM users u
+       LEFT JOIN plans p ON u.plan_id = p.id
+       WHERE u.id = ?`,
+      [userId],
+      (err, row) => {
+        if (err) reject(err);
+        else resolve(row || { api_calls_used: 0, api_limit: 0 });
+      }
+    );
+  });
 }

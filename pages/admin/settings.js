@@ -63,37 +63,37 @@ export default function AdminSettings() {
         {
           title: 'Customer Login Page',
           description: 'Customize the login page theme and styling',
-          href: '/admin/reserved-pages/login',
+          href: '/admin/pages',
           action: 'Customize'
         },
         {
-          title: 'Customer Signup Page', 
+          title: 'Customer Signup Page',
           description: 'Customize the registration page theme and styling',
-          href: '/admin/reserved-pages/signup',
+          href: '/admin/pages',
           action: 'Customize'
         },
         {
           title: 'Customer Dashboard',
           description: 'Customize the customer dashboard layout and theme',
-          href: '/admin/reserved-pages/dashboard',
+          href: '/admin/pages',
           action: 'Customize'
         },
         {
           title: 'Customer Profile Page',
           description: 'Customize the profile management page',
-          href: '/admin/reserved-pages/profile',
+          href: '/admin/pages',
           action: 'Customize'
         },
         {
           title: 'Billing & Upgrade Page',
           description: 'Customize the subscription upgrade page',
-          href: '/admin/reserved-pages/billing',
+          href: '/admin/pages',
           action: 'Customize'
         },
         {
           title: 'Password Reset Page',
           description: 'Customize the password reset page',
-          href: '/admin/reserved-pages/password-reset',
+          href: '/admin/pages',
           action: 'Customize'
         }
       ]

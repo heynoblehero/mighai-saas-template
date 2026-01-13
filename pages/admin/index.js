@@ -52,10 +52,10 @@ export default function AdminDashboard() {
   const [recentActivity, setRecentActivity] = useState([]);
   const [quickActions, setQuickActions] = useState([]);
   const [systemHealth, setSystemHealth] = useState({
-    uptime: '99.9%',
-    responseTime: '120ms',
-    securityScore: 'A+',
-    storageUsed: '2.4GB / 10GB'
+    uptime: '...',
+    responseTime: '...',
+    securityScore: '...',
+    storageUsed: '...'
   });
   const [loading, setLoading] = useState(true);
   const [timeframe, setTimeframe] = useState('7d');
@@ -67,27 +67,37 @@ export default function AdminDashboard() {
   const animatedPages = useAnimatedCounter(stats.pages, 1200, 0);
   const animatedPlans = useAnimatedCounter(stats.plans, 1000, 0);
 
-  // Generate minimal demo data since no analytics are configured yet
-  const generatePerformanceData = () => {
+  // State for real dashboard data
+  const [dashboardData, setDashboardData] = useState(null);
+  const [performanceData, setPerformanceData] = useState([]);
+
+  // Generate performance data from real daily views
+  const generatePerformanceData = (dailyViews = []) => {
     const now = new Date();
     const days = timeframe === '7d' ? 7 : timeframe === '30d' ? 30 : 90;
     const data = [];
 
+    // Create a map of daily views for quick lookup
+    const viewsMap = {};
+    dailyViews.forEach(day => {
+      viewsMap[day.date] = day;
+    });
+
     for (let i = days - 1; i >= 0; i--) {
       const date = new Date(now - i * 24 * 60 * 60 * 1000);
+      const dateStr = date.toISOString().split('T')[0];
+      const dayData = viewsMap[dateStr];
 
       data.push({
         date: date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-        revenue: Math.floor(Math.random() * 100),
-        subscribers: Math.floor(Math.random() * 5),
-        pagesCreated: Math.floor(Math.random() * 3),
-        systemHealth: Math.floor(Math.random() * 20) + 80 // 80-100%
+        revenue: 0, // Will be calculated from subscribers if available
+        subscribers: dayData?.unique_visitors || 0,
+        pagesCreated: dayData?.views || 0,
+        systemHealth: 95 // System health placeholder
       });
     }
     return data;
   };
-
-  const performanceData = generatePerformanceData();
 
   // Generate quick actions
   const generateQuickActions = () => {
@@ -105,7 +115,7 @@ export default function AdminDashboard() {
         title: 'Customize Reserved Pages',
         description: 'Update customer login, signup, and dashboard',
         icon: '🎨',
-        action: () => router.push('/admin/reserved-pages'),
+        action: () => router.push('/admin/pages'),
         color: 'bg-blue-600'
       },
       {
@@ -126,10 +136,10 @@ export default function AdminDashboard() {
       },
       {
         id: 'ai-settings',
-        title: 'AI Settings',
-        description: 'Configure AI providers and keys',
+        title: 'AI Page Builder',
+        description: 'Generate pages with AI assistance',
         icon: '🤖',
-        action: () => router.push('/admin/ai-settings'),
+        action: () => router.push('/admin/ai-page-builder'),
         color: 'bg-teal-600'
       },
       {
@@ -143,80 +153,154 @@ export default function AdminDashboard() {
     ];
   };
 
-  // Generate recent activity
-  const generateRecentActivity = () => {
-    return [
-      {
-        id: 1,
-        type: 'page_created',
-        title: 'New page created',
-        description: 'Landing page for marketing campaign',
-        time: '2 minutes ago',
-        icon: '📄',
-        color: 'text-emerald-400'
-      },
-      {
-        id: 2,
-        type: 'subscriber_added',
-        title: 'New subscriber',
-        description: 'john@example.com subscribed to premium plan',
-        time: '15 minutes ago',
-        icon: '👤',
-        color: 'text-blue-400'
-      },
-      {
-        id: 3,
-        type: 'plan_updated',
-        title: 'Plan updated',
-        description: 'Basic plan features modified',
-        time: '1 hour ago',
-        icon: '💳',
-        color: 'text-purple-400'
-      },
-      {
-        id: 4,
-        type: 'blog_post',
-        title: 'Blog post published',
-        description: 'How to use AI page builder',
-        time: '3 hours ago',
+  // Generate recent activity from real data
+  const generateRecentActivity = (analytics, subscribers) => {
+    const activities = [];
+
+    // Add recent subscribers
+    if (subscribers && subscribers.length > 0) {
+      const recentSubs = subscribers.slice(0, 3);
+      recentSubs.forEach((sub, idx) => {
+        const createdDate = new Date(sub.created_at);
+        const now = new Date();
+        const diffMs = now - createdDate;
+        const diffMins = Math.floor(diffMs / 60000);
+        const diffHours = Math.floor(diffMins / 60);
+        const diffDays = Math.floor(diffHours / 24);
+
+        let timeAgo = 'Just now';
+        if (diffDays > 0) timeAgo = `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
+        else if (diffHours > 0) timeAgo = `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
+        else if (diffMins > 0) timeAgo = `${diffMins} minute${diffMins > 1 ? 's' : ''} ago`;
+
+        activities.push({
+          id: `sub-${sub.id}`,
+          type: 'subscriber_added',
+          title: 'New subscriber',
+          description: `${sub.email} ${sub.plan ? `subscribed to ${sub.plan.name}` : 'signed up'}`,
+          time: timeAgo,
+          icon: '👤',
+          color: 'text-blue-400'
+        });
+      });
+    }
+
+    // Add top blog posts as activity
+    if (analytics?.topBlogPosts && analytics.topBlogPosts.length > 0) {
+      const topPost = analytics.topBlogPosts[0];
+      activities.push({
+        id: `blog-${topPost.slug}`,
+        type: 'blog_popular',
+        title: 'Popular blog post',
+        description: `"${topPost.title}" has ${topPost.view_count} views`,
+        time: 'This month',
         icon: '📝',
         color: 'text-amber-400'
-      },
-      {
-        id: 5,
-        type: 'system_update',
-        title: 'System update',
-        description: 'Platform updated to v2.1.0',
-        time: 'Yesterday',
-        icon: '⚙️',
-        color: 'text-slate-400'
-      }
-    ];
+      });
+    }
+
+    // Add page view milestone if available
+    if (analytics?.pageViewStats?.total_views > 0) {
+      activities.push({
+        id: 'pageviews',
+        type: 'milestone',
+        title: 'Page views milestone',
+        description: `${analytics.pageViewStats.total_views} total page views this month`,
+        time: 'Last 30 days',
+        icon: '📊',
+        color: 'text-emerald-400'
+      });
+    }
+
+    // If no real activity, show a welcome message
+    if (activities.length === 0) {
+      activities.push({
+        id: 'welcome',
+        type: 'system',
+        title: 'Welcome to your dashboard',
+        description: 'Start by creating your first page or blog post',
+        time: 'Now',
+        icon: '🎉',
+        color: 'text-purple-400'
+      });
+    }
+
+    return activities.slice(0, 5);
   };
 
   useEffect(() => {
-    // Simulate loading data
-    setLoading(true);
-    setTimeout(() => {
-      setStats({
-        pages: 12,
-        blogPosts: 5,
-        subscribers: 42,
-        plans: 3,
-        revenue: 1250,
-        orders: 8,
-        conversionRate: 3.2,
-        avgOrderValue: 156.25,
-        visitors: 1240,
-        bounceRate: 42.5,
-        sessionDuration: 3.2
-      });
+    const fetchDashboardData = async () => {
+      setLoading(true);
+      try {
+        // Fetch all data in parallel
+        const [analyticsRes, subscribersRes, plansRes, healthRes] = await Promise.all([
+          fetch('/api/analytics/dashboard'),
+          fetch('/api/subscribers'),
+          fetch('/api/plans'),
+          fetch('/api/admin/system-health')
+        ]);
 
-      setQuickActions(generateQuickActions());
-      setRecentActivity(generateRecentActivity());
-      setLoading(false);
-    }, 800);
+        // Update system health if available
+        if (healthRes.ok) {
+          const healthData = await healthRes.json();
+          setSystemHealth({
+            uptime: healthData.uptime || '99.9%',
+            responseTime: healthData.responseTime || '< 100ms',
+            securityScore: healthData.securityScore || 'A',
+            storageUsed: healthData.storageUsed || '0 / 10GB'
+          });
+        }
+
+        const analyticsData = analyticsRes.ok ? await analyticsRes.json() : null;
+        const subscribers = subscribersRes.ok ? await subscribersRes.json() : [];
+        const plans = plansRes.ok ? await plansRes.json() : [];
+
+        // Calculate real stats
+        const activeSubscribers = subscribers.filter(s => s.subscription_status === 'active');
+        const totalRevenue = activeSubscribers.reduce((sum, s) => sum + (s.plan?.price || 0), 0);
+
+        setStats({
+          pages: analyticsData?.blogStats?.total_posts || 0,
+          blogPosts: analyticsData?.blogStats?.published_posts || 0,
+          subscribers: subscribers.length,
+          plans: plans.length,
+          revenue: totalRevenue,
+          orders: activeSubscribers.length,
+          conversionRate: subscribers.length > 0 ? ((activeSubscribers.length / subscribers.length) * 100).toFixed(1) : 0,
+          avgOrderValue: activeSubscribers.length > 0 ? Math.round(totalRevenue / activeSubscribers.length) : 0,
+          visitors: analyticsData?.pageViewStats?.total_views || 0,
+          bounceRate: 0, // Not tracked
+          sessionDuration: 0 // Not tracked
+        });
+
+        setDashboardData(analyticsData);
+        setPerformanceData(generatePerformanceData(analyticsData?.dailyViews || []));
+        setQuickActions(generateQuickActions());
+        setRecentActivity(generateRecentActivity(analyticsData, subscribers));
+      } catch (error) {
+        console.error('Failed to fetch dashboard data:', error);
+        // Set empty state on error
+        setStats({
+          pages: 0, blogPosts: 0, subscribers: 0, plans: 0, revenue: 0,
+          orders: 0, conversionRate: 0, avgOrderValue: 0, visitors: 0,
+          bounceRate: 0, sessionDuration: 0
+        });
+        setQuickActions(generateQuickActions());
+        setRecentActivity([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchDashboardData();
   }, []);
+
+  // Regenerate performance data when timeframe changes
+  useEffect(() => {
+    if (dashboardData?.dailyViews) {
+      setPerformanceData(generatePerformanceData(dashboardData.dailyViews));
+    }
+  }, [timeframe, dashboardData]);
 
   if (loading) {
     return (
@@ -291,15 +375,15 @@ export default function AdminDashboard() {
                   style={{ width: `${Math.min(100, (stats.subscribers / 100) * 100)}%` }}
                 ></div>
               </div>
-              <p className="text-slate-400 text-xs mt-2">+12% from last week</p>
+              <p className="text-slate-400 text-xs mt-2">Total signups</p>
             </div>
           </div>
 
           <div className="bg-slate-800 border border-slate-700 rounded-xl p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-slate-400 text-sm">New Customers</p>
-                <p className="text-3xl font-bold text-slate-100">{stats.subscribers}</p>
+                <p className="text-slate-400 text-sm">Active Customers</p>
+                <p className="text-3xl font-bold text-slate-100">{stats.orders}</p>
               </div>
               <div className="bg-emerald-500/10 p-3 rounded-lg">
                 <span className="text-emerald-400 text-xl">👥</span>
@@ -309,10 +393,10 @@ export default function AdminDashboard() {
               <div className="h-2 bg-slate-700 rounded-full overflow-hidden">
                 <div
                   className="h-full bg-emerald-500 rounded-full"
-                  style={{ width: `${Math.min(100, (stats.subscribers / 100) * 100)}%` }}
+                  style={{ width: `${Math.min(100, (stats.orders / 100) * 100)}%` }}
                 ></div>
               </div>
-              <p className="text-slate-400 text-xs mt-2">+8% from last week</p>
+              <p className="text-slate-400 text-xs mt-2">{stats.conversionRate}% conversion rate</p>
             </div>
           </div>
 
@@ -333,7 +417,7 @@ export default function AdminDashboard() {
                   style={{ width: `${Math.min(100, (stats.visitors / 2000) * 100)}%` }}
                 ></div>
               </div>
-              <p className="text-slate-400 text-xs mt-2">+18% from last week</p>
+              <p className="text-slate-400 text-xs mt-2">Last 30 days</p>
             </div>
           </div>
         </div>

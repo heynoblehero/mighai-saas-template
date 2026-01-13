@@ -855,5 +855,109 @@
         "required": true
       }
     ]
+  },
+  "customer-api-keys": {
+    "name": "API Keys Management",
+    "description": "Subscriber page to manage API keys for programmatic access to custom routes",
+    "required_elements": [
+      {
+        "type": "component",
+        "id": "apiKeysList",
+        "required": true,
+        "description": "List/table displaying user's API keys with prefix, name, status, dates"
+      },
+      {
+        "type": "input",
+        "id": "keyNameInput",
+        "name": "keyName",
+        "input_type": "text",
+        "required": false,
+        "description": "Optional input for naming the new API key"
+      },
+      {
+        "type": "button",
+        "id": "generateKeyButton",
+        "action": "handleGenerateKey",
+        "required": true,
+        "description": "Button to generate a new API key"
+      },
+      {
+        "type": "button",
+        "id": "revokeKeyButton",
+        "action": "handleRevokeKey",
+        "required": true,
+        "description": "Button to revoke/deactivate an API key"
+      },
+      {
+        "type": "button",
+        "id": "deleteKeyButton",
+        "action": "handleDeleteKey",
+        "required": true,
+        "description": "Button to permanently delete an API key"
+      },
+      {
+        "type": "component",
+        "id": "usageStats",
+        "required": true,
+        "description": "Display of API usage stats (calls used vs limit)"
+      },
+      {
+        "type": "component",
+        "id": "newKeyModal",
+        "required": true,
+        "description": "Modal to display newly generated key (shown only once)"
+      },
+      {
+        "type": "component",
+        "id": "usageInstructions",
+        "required": true,
+        "description": "Code examples showing how to use API keys with curl"
+      }
+    ],
+    "required_functionality": [
+      {
+        "name": "fetchApiKeys",
+        "description": "Load user's API keys on page load",
+        "api_endpoint": "/api/subscribe/api-keys",
+        "method": "GET",
+        "required": true
+      },
+      {
+        "name": "handleGenerateKey",
+        "description": "Generate a new API key for the user",
+        "api_endpoint": "/api/subscribe/api-keys",
+        "method": "POST",
+        "required_fields": ["name"],
+        "required": true
+      },
+      {
+        "name": "handleRevokeKey",
+        "description": "Revoke (deactivate) an API key",
+        "api_endpoint": "/api/subscribe/api-keys",
+        "method": "DELETE",
+        "required_fields": ["key_id"],
+        "required": true
+      },
+      {
+        "name": "handleDeleteKey",
+        "description": "Permanently delete an API key",
+        "api_endpoint": "/api/subscribe/api-keys",
+        "method": "DELETE",
+        "required_fields": ["key_id", "permanent"],
+        "required": true
+      },
+      {
+        "name": "copyToClipboard",
+        "description": "Copy API key to clipboard",
+        "required": true
+      }
+    ],
+    "styling_guidelines": [
+      "Dark theme consistent with dashboard",
+      "Clear visual distinction between active and revoked keys",
+      "Prominent warning that keys are shown only once",
+      "Usage progress bar if plan has limits",
+      "Mobile responsive design"
+    ]
   }
 }

@@ -3,10 +3,11 @@ import path from 'path';
 import AIProviderService from '../../../services/ai-provider.js';
 import { quickValidate, generateValidationReport } from '../../../lib/ai-code-validator.js';
 import { saveConversation, addMessage, initializeAIConversationTables } from '../../../lib/ai-conversation-init.js';
+import { getAIPromptInstructions } from '../../../lib/frontend-features-injector.js';
 import crypto from 'crypto';
+import db from '../../../lib/database';
 
 const SETTINGS_FILE = path.join(process.cwd(), 'data', 'ai-settings.json');
-const USAGE_FILE = path.join(process.cwd(), 'data', 'ai-usage.json');
 
 // Initialize conversation tables
 initializeAIConversationTables();
@@ -24,266 +25,193 @@ function getSettings() {
   }
 }
 
-function trackUsage(tokensUsed, estimatedCost) {
+function trackUsage(tokensUsed, estimatedCost, model = null, provider = null) {
   try {
-    const usageData = {
-      timestamp: new Date().toISOString(),
-      tokens_used: tokensUsed,
-      estimated_cost: estimatedCost,
-      month: new Date().toISOString().slice(0, 7) // YYYY-MM format
-    };
+    const month = new Date().toISOString().slice(0, 7);
 
-    let allUsage = [];
-    if (fs.existsSync(USAGE_FILE)) {
-      const existingData = fs.readFileSync(USAGE_FILE, 'utf8');
-      allUsage = JSON.parse(existingData);
-    }
-
-    allUsage.push(usageData);
-
-    // Keep only last 1000 entries
-    if (allUsage.length > 1000) {
-      allUsage = allUsage.slice(-1000);
-    }
-
-    fs.writeFileSync(USAGE_FILE, JSON.stringify(allUsage, null, 2));
+    db.run(`INSERT INTO ai_usage_logs (tokens_used, estimated_cost, usage_type, model, provider, month)
+            VALUES (?, ?, ?, ?, ?, ?)`,
+      [tokensUsed, estimatedCost, 'page-generation', model, provider, month],
+      function(err) {
+        if (err) {
+          console.error('Error tracking usage in database:', err);
+        } else {
+          console.log('✅ Usage tracked in database with ID:', this.lastID);
+        }
+      });
   } catch (error) {
     console.error('Error tracking usage:', error);
   }
 }
 
-const PAGE_GENERATION_PROMPT = `You are an elite web developer and designer specializing in creating stunning, modern web pages. Create a complete, beautiful, fully-functional web page with inline CSS and JavaScript.
+const PAGE_GENERATION_PROMPT = `You are an elite web developer creating pages for a SaaS platform. Generate a COMPLETE, PRODUCTION-READY web page that matches our design system EXACTLY.
 
-🎨 DESIGN CAPABILITIES:
-You can create ANY type of page: landing pages, portfolios, dashboards, ecommerce, blogs, SaaS marketing, corporate sites, creative showcases, documentation, and more.
+═══════════════════════════════════════════════════════════════════════
+                    MANDATORY DESIGN SYSTEM (USE THESE EXACT VALUES)
+═══════════════════════════════════════════════════════════════════════
 
-Use modern design patterns:
-• Glassmorphism, Neumorphism, Gradient meshes
-• Hero sections with dynamic backgrounds
-• Card-based layouts, Split-screen designs
-• Parallax scrolling, Sticky navigation
-• Testimonial carousels, Pricing tables
-• Feature showcases, Timeline components
-• Stats displays, Team grids, Portfolio galleries
+🎨 COLOR PALETTE (DARK THEME WITH EMERALD ACCENTS):
+• Primary/Accent: #00d084 (emerald green)
+• Primary Hover: #00b372
+• Background: #111111 (page), #1a1a1a (surfaces/cards)
+• Surface Subdued: #2a2a2a
+• Text Primary: #f0f0f0
+• Text Secondary: #b5b5b5
+• Text Subdued: #8a8a8a
+• Borders: #303030
+• Success: #00d084 | Warning: #f59e0b | Error: #ff6d6d | Info: #3b82f6
 
-Advanced CSS techniques:
-• CSS Grid & Flexbox for layouts
-• Custom CSS variables for theming
-• Keyframe animations, Transform effects
-• Gradient backgrounds, Box shadows
-• Backdrop filters, Clip-path shapes
-• Smooth transitions and micro-interactions
+📝 TYPOGRAPHY:
+• Font: Inter (include: <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">)
+• Sizes: 12px(xs), 14px(sm), 16px(base), 20px(lg), 24px(xl), 32px(2xl), 40px(3xl), 48px(4xl)
+• Weights: 400(normal), 500(medium), 600(semibold), 700(bold)
 
-Interactive JavaScript:
-• Form validation, Mobile menu toggle
-• Scroll animations (fade-in, slide-in)
-• Modal/popup functionality
-• Carousels and sliders
-• Tabs, accordions, Dark mode toggle
-• Smooth scrolling, Counter animations
+📏 SPACING (8px BASE SCALE):
+4px, 8px, 12px, 16px, 24px, 32px, 48px, 64px
+
+🔲 BORDER RADIUS:
+• Buttons/Inputs: 6px
+• Cards: 12px
+• Modals: 16px
+• Badges: 9999px (pill)
+
+🌟 SHADOWS (DARK-OPTIMIZED):
+• Cards: 0 0 0 1px rgba(255,255,255,0.05), 0 1px 3px 0 rgba(0,0,0,0.4)
+• Elevated: 0 0 0 1px rgba(255,255,255,0.05), 0 10px 15px -3px rgba(0,0,0,0.5)
+
+═══════════════════════════════════════════════════════════════════════
+                              COMPONENT PATTERNS
+═══════════════════════════════════════════════════════════════════════
+
+BUTTONS:
+• Primary: bg #00d084, text white, hover #00b372
+• Secondary: bg #2a2a2a, border #404040, text #f0f0f0, hover bg #303030
+• Ghost: transparent, text #b5b5b5, hover bg rgba(255,255,255,0.1)
+
+CARDS:
+• Background: #1a1a1a, border: 1px solid #303030, border-radius: 12px
+• Padding: 24px (1.5rem)
+• Hover effect: transform translateY(-4px), shadow-lg
+
+INPUTS:
+• Background: #1a1a1a, border: #303030, border-radius: 6px
+• Focus: border #00d084, ring 2px rgba(0,208,132,0.3)
+• Placeholder: #6a6a6a
+
+BADGES:
+• Success: bg rgba(0,208,132,0.15), text #00d084
+• Warning: bg rgba(245,158,11,0.15), text #f59e0b
+• Error: bg rgba(255,109,109,0.15), text #ff6d6d
+
+═══════════════════════════════════════════════════════════════════════
+
+🚫 CRITICAL - DO NOT ADD (ALREADY GLOBAL):
+• Analytics tracking code (/analytics.js is auto-loaded)
+• Heatmap tracking (/heatmap.js is auto-loaded)
+• Chat widgets (SupportWidget is global)
+• These are injected at app level - NEVER duplicate!
 
 📋 REQUIREMENTS:
-✓ Complete HTML with <style> and <script> tags inline
+✓ Complete HTML with inline <style> and <script> tags
 ✓ Semantic HTML5 (header, nav, main, section, footer)
-✓ WCAG 2.1 accessible (ARIA labels, contrast ratios)
-✓ Fully responsive (mobile-first, breakpoints: 640px, 768px, 1024px)
-✓ Modern aesthetics (harmonious colors, typography scale, proper spacing)
-✓ Smooth animations and hover effects
-✓ Production-ready code
+✓ WCAG 2.1 accessible (ARIA labels, 4.5:1 contrast)
+✓ Fully responsive (mobile-first): 640px, 768px, 1024px, 1280px
+✓ Smooth 200ms transitions, hover effects, scroll animations
+✓ Use CSS variables for colors
+✓ Wrap JS in DOMContentLoaded
 
 🎯 USER REQUEST: {userPrompt}
 
 📝 CONTEXT: {context}
 
-🚀 INSTRUCTIONS:
-1. Analyze the request and choose appropriate design patterns
-2. Select a cohesive color palette
-3. Implement modern, visually stunning design
-4. Add smooth animations and interactions
-5. Ensure pixel-perfect responsiveness
-6. Make it visually impressive - wow the user!
+Generate ONLY complete HTML code (no markdown). Include all CSS in <style> and JS in <script>. Make it stunning and production-ready!`;
 
-Generate ONLY the complete HTML code (no markdown, no explanations). Include all CSS in <style> tags and all JavaScript in <script> tags. Make it production-ready and absolutely beautiful!`;
+const SEPARATED_GENERATION_PROMPT = `You are an elite web developer creating pages for a SaaS platform. Generate SEPARATED HTML, CSS, and JavaScript that matches our design system EXACTLY.
 
-const SEPARATED_GENERATION_PROMPT = `You are an elite web developer and designer with expertise in creating stunning, modern web pages. Create a beautiful, fully-functional web page with SEPARATED HTML, CSS, and JavaScript.
-
-CRITICAL OUTPUT FORMAT - Use this EXACT structure:
+═══════════════════════════════════════════════════════════════════════
+                           OUTPUT FORMAT (MANDATORY)
+═══════════════════════════════════════════════════════════════════════
 
 ===HTML===
-[Your HTML code here - clean semantic HTML without any <style> or <script> tags]
+[Clean semantic HTML - NO <style> or <script> tags]
 ===CSS===
-[Your CSS code here - all styles needed for the page]
+[All styles - use CSS variables]
 ===JS===
-[Your JavaScript code here - all functionality, or leave empty if not needed]
+[JavaScript wrapped in DOMContentLoaded, or empty if not needed]
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+═══════════════════════════════════════════════════════════════════════
+                    MANDATORY DESIGN SYSTEM (USE EXACTLY)
+═══════════════════════════════════════════════════════════════════════
 
-🎨 DESIGN SYSTEM & STYLE CAPABILITIES:
+🎨 COLOR PALETTE (DARK THEME WITH EMERALD ACCENTS):
+--color-primary: #00d084;
+--color-primary-hover: #00b372;
+--color-bg: #111111;
+--color-surface: #1a1a1a;
+--color-surface-subdued: #2a2a2a;
+--color-text: #f0f0f0;
+--color-text-secondary: #b5b5b5;
+--color-text-subdued: #8a8a8a;
+--color-border: #303030;
+--color-success: #00d084;
+--color-warning: #f59e0b;
+--color-error: #ff6d6d;
+--color-info: #3b82f6;
 
-MODERN DESIGN PATTERNS YOU CAN USE:
-• Glassmorphism (frosted glass effects with backdrop-filter)
-• Neumorphism (soft 3D UI elements)
-• Gradient meshes and color transitions
-• Card-based layouts with depth
-• Split-screen layouts
-• Asymmetric grids
-• Hero sections with dynamic backgrounds
-• Parallax scrolling effects
-• Sticky navigation bars
-• Mega menus
-• Testimonial carousels
-• Pricing comparison tables
-• Feature showcases with icons
-• Timeline components
-• Stats/metrics displays
-• Team member grids
-• Portfolio galleries
-• Blog card layouts
-• Newsletter signup forms
-• Contact forms with validation
+📝 TYPOGRAPHY:
+--font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+Font sizes: 0.75rem(xs), 0.875rem(sm), 1rem(base), 1.25rem(lg), 1.5rem(xl), 2rem(2xl), 2.5rem(3xl)
+Include Google Font: <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 
-ADVANCED CSS TECHNIQUES:
-• CSS Grid for complex layouts
-• Flexbox for flexible components
-• Custom CSS variables for theming
-• Smooth scroll behavior
-• Intersection Observer animations (using JS)
-• Keyframe animations (@keyframes)
-• Transform effects (scale, rotate, translate)
-• Gradient backgrounds (linear, radial, conic)
-• Box shadows and text shadows
-• Border radius and custom shapes
-• Backdrop filters for glassmorphism
-• Clip-path for creative shapes
-• CSS transitions for smooth interactions
-• Pseudo-elements (::before, ::after) for decorative elements
-• CSS filters (blur, brightness, contrast, etc.)
+📏 SPACING: 4px, 8px, 12px, 16px, 24px, 32px, 48px, 64px
 
-RESPONSIVE DESIGN:
-• Mobile-first approach
-• Breakpoints: 640px (sm), 768px (md), 1024px (lg), 1280px (xl)
-• Fluid typography with clamp()
-• Responsive images and aspect ratios
-• Touch-friendly interactive elements
-• Hamburger menus for mobile
+🔲 BORDER RADIUS:
+--radius-sm: 4px; --radius-base: 6px; --radius-lg: 12px; --radius-xl: 16px;
 
-COLOR & TYPOGRAPHY:
-• Use harmonious color palettes (complementary, analogous, or triadic)
-• Implement proper contrast ratios for accessibility
-• Typography scale (12px, 14px, 16px, 20px, 24px, 32px, 48px, 64px)
-• Font pairings (headings + body text)
-• Line height and letter spacing for readability
-• Google Fonts or system font stacks
+🌟 SHADOWS:
+--shadow-card: 0 0 0 1px rgba(255,255,255,0.05), 0 1px 3px 0 rgba(0,0,0,0.4);
+--shadow-elevated: 0 0 0 1px rgba(255,255,255,0.05), 0 10px 15px -3px rgba(0,0,0,0.5);
 
-ANIMATIONS & INTERACTIONS:
-• Hover effects on buttons and links
-• Smooth page transitions
-• Fade-in animations on scroll
-• Loading states and spinners
-• Modal/dialog animations
-• Dropdown menus with transitions
-• Image zoom on hover
-• Parallax effects
-• Typing animations
-• Progress bars
-• Skeleton loaders
+═══════════════════════════════════════════════════════════════════════
+                              COMPONENT PATTERNS
+═══════════════════════════════════════════════════════════════════════
 
-JAVASCRIPT CAPABILITIES:
-• Form validation
-• Interactive navigation (mobile menu toggle)
-• Scroll animations (fade-in, slide-in)
-• Smooth scrolling to sections
-• Modal/popup functionality
-• Carousel/slider functionality
-• Tabs and accordions
-• Lazy loading images
-• Dark mode toggle
-• Dynamic content loading
-• Search functionality
-• Filtering and sorting
-• Counter animations
-• Parallax effects
+BUTTONS:
+.btn-primary { background: var(--color-primary); color: white; border-radius: 6px; padding: 0.75rem 1.5rem; }
+.btn-primary:hover { background: var(--color-primary-hover); }
+.btn-secondary { background: var(--color-surface-subdued); border: 1px solid var(--color-border); color: var(--color-text); }
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CARDS:
+.card { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 12px; padding: 1.5rem; }
+.card:hover { transform: translateY(-4px); box-shadow: var(--shadow-elevated); }
 
-📋 TECHNICAL REQUIREMENTS:
+INPUTS:
+input, textarea { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 6px; padding: 0.75rem 1rem; color: var(--color-text); }
+input:focus { border-color: var(--color-primary); outline: none; box-shadow: 0 0 0 3px rgba(0,208,132,0.2); }
 
-HTML:
-✓ Semantic HTML5 elements (<header>, <nav>, <main>, <section>, <article>, <footer>)
-✓ Proper heading hierarchy (h1-h6)
-✓ ARIA labels for accessibility
-✓ Alt text for images
-✓ Form labels and input associations
-✓ Meta tags for responsiveness (<meta name="viewport">)
-✓ No inline styles or scripts
+HERO SECTIONS:
+.hero { min-height: 80vh; background: linear-gradient(135deg, var(--color-bg) 0%, var(--color-surface) 100%); }
 
-CSS:
-✓ Modern, production-ready CSS
-✓ CSS custom properties (--variables) for consistency
-✓ Mobile-first responsive design
-✓ Smooth transitions and animations
-✓ Proper z-index management
-✓ Optimized selectors
-✓ Cross-browser compatibility
-✓ Print styles if applicable
+GLASS EFFECT:
+.glass { background: rgba(26, 26, 26, 0.8); backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.1); }
 
-JavaScript:
-✓ Vanilla JavaScript (no framework dependencies)
-✓ Event listeners for interactions
-✓ DOM manipulation
-✓ Form validation
-✓ Intersection Observer for scroll animations
-✓ Local storage for preferences
-✓ Debounced/throttled event handlers
-✓ Error handling
+═══════════════════════════════════════════════════════════════════════
 
-ACCESSIBILITY (WCAG 2.1):
-✓ Color contrast ratios (4.5:1 for text)
-✓ Keyboard navigation support
-✓ Focus indicators
-✓ Screen reader friendly
-✓ ARIA roles and labels
-✓ Skip links for navigation
-✓ Form error messaging
+🚫 DO NOT ADD (ALREADY GLOBAL):
+• Analytics (/analytics.js) • Heatmaps (/heatmap.js) • Chat widgets
 
-PERFORMANCE:
-✓ Optimized CSS (no redundant rules)
-✓ Efficient JavaScript (no memory leaks)
-✓ Lazy loading for images below fold
-✓ Minimal DOM manipulation
-✓ CSS animations (not JS when possible)
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📋 REQUIREMENTS:
+✓ Semantic HTML5, WCAG 2.1 accessible
+✓ Responsive: 640px, 768px, 1024px, 1280px breakpoints
+✓ Smooth 200ms transitions, scroll animations
+✓ CSS variables for all colors
+✓ JS wrapped in: document.addEventListener('DOMContentLoaded', function() { ... });
 
 🎯 USER REQUEST: {userPrompt}
 
-📝 ADDITIONAL CONTEXT: {context}
+📝 CONTEXT: {context}
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-🚀 GENERATION INSTRUCTIONS:
-
-1. Analyze the user request and determine the page type (landing, portfolio, dashboard, ecommerce, blog, etc.)
-2. Choose appropriate design patterns and components
-3. Select a cohesive color palette that matches the request
-4. Implement modern, visually stunning design
-5. Add smooth animations and micro-interactions
-6. Ensure pixel-perfect responsiveness
-7. Include meaningful placeholder content
-8. Add interactive elements with JavaScript
-9. Test for accessibility
-
-IMPORTANT REMINDERS:
-• Output MUST use the exact ===HTML===, ===CSS===, ===JS=== format
-• Create production-ready, beautiful, modern code
-• Make it visually impressive - wow the user!
-• Include rich interactions and smooth animations
-• Ensure everything works on mobile and desktop
-• Use modern CSS features (Grid, Flexbox, custom properties)
-• Add thoughtful micro-interactions and hover effects
-• Make placeholder content realistic and relevant
-
-Now create an absolutely stunning web page that exceeds expectations!`;
+Generate ONLY in ===HTML===, ===CSS===, ===JS=== format. Make it stunning!`;
 
 export default async function handler(req, res) {
   console.log('🤖 AI Generate Page API called');
@@ -342,11 +270,10 @@ export default async function handler(req, res) {
 
     provider = settings.ai_provider || 'gemini';
 
-    // Validate provider-specific API key
+    // Validate provider-specific API key (Claude and Gemini only)
     const providerKeys = {
       'gemini': 'gemini_api_key',
-      'claude': 'claude_api_key',
-      'openai': 'openai_api_key'
+      'claude': 'claude_api_key'
     };
 
     const requiredKey = providerKeys[provider];
@@ -534,7 +461,7 @@ Generate ONLY the complete HTML code. Do not include markdown code blocks or exp
     // Track usage (only if using server key)
     if (!usingUserKey) {
       console.log('🤖 Tracking server usage...');
-      trackUsage(tokensUsed, estimatedCost);
+      trackUsage(tokensUsed, estimatedCost, result.model, result.provider);
 
       // Update monthly usage in settings
       const newMonthlyUsage = (settings.current_month_usage || 0) + estimatedCost;

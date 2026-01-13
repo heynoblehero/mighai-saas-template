@@ -29,7 +29,8 @@ try {
     packages: [],
     auth_required: false,
     rate_limit_per_day: null,
-    plan_access: 'public'
+    plan_access: 'public',
+    allow_api_key_access: false
   });
 
   const [packageInput, setPackageInput] = useState('');
@@ -255,6 +256,24 @@ try {
                 <p className="text-xs text-slate-400 mt-1">
                   Limit the number of calls per user/IP per day. Leave empty for unlimited.
                 </p>
+              </div>
+
+              <div className="pt-4 border-t border-slate-700">
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={formData.allow_api_key_access}
+                    onChange={(e) => setFormData({ ...formData, allow_api_key_access: e.target.checked })}
+                    className="w-5 h-5 rounded border-slate-600 bg-slate-700 text-emerald-500 focus:ring-emerald-500 focus:ring-offset-0"
+                  />
+                  <div>
+                    <span className="text-slate-200 font-medium">🔑 Allow API Key Access</span>
+                    <p className="text-xs text-slate-400 mt-1">
+                      Enable subscribers to call this route programmatically using API keys (curl, code, automation).
+                      Credits will be deducted from their plan limit.
+                    </p>
+                  </div>
+                </label>
               </div>
             </div>
           </div>

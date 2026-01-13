@@ -47,22 +47,5 @@
     },
     "timestamps": true,
     "authentication": "required"
-  },
-  "a": {
-    "name": "a",
-    "displayName": "a",
-    "description": "",
-    "icon": "📄",
-    "isSystem": false,
-    "schema": {
-      "z": {
-        "type": "text",
-        "required": false,
-        "unique": false
-      }
-    },
-    "timestamps": true,
-    "authentication": "required",
-    "createdAt": "2025-11-11T21:21:50.153Z"
   }
 }

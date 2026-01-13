@@ -1,16 +1,13 @@
 const db = require('../../../lib/database');
 const { initializeStorageTables } = require('../../../lib/storage-init');
+import { withAdminAuth } from '../../../lib/auth-middleware';
 
 // Initialize tables on first load
 initializeStorageTables();
 
-export default function handler(req, res) {
-  // Check if user is authenticated
-  if (!req.session || !req.session.user) {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
-
-  const isAdmin = req.session.user.role === 'admin';
+async function handler(req, res) {
+  // User is already authenticated via withAdminAuth middleware
+  const isAdmin = req.user && req.user.role === 'admin';
 
   if (req.method === 'GET') {
     // List all buckets
@@ -161,3 +158,5 @@ export default function handler(req, res) {
 
   return res.status(405).json({ error: 'Method not allowed' });
 }
+
+export default withAdminAuth(handler);

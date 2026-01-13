@@ -29,13 +29,14 @@ export default function Subscribers() {
       
       if (response.ok) {
         // Enhance subscriber data with additional fields for table display
-        const enhancedData = data.map((subscriber, index) => ({
+        const enhancedData = data.map((subscriber) => ({
           ...subscriber,
-          status: subscriber.is_active ? 'active' : 'inactive',
-          plan: subscriber.plan || 'Free',
-          lastLogin: subscriber.last_login_at || subscriber.created_at,
-          usage: Math.floor(Math.random() * 100), // Placeholder until real usage tracking
-          revenue: subscriber.revenue || Math.floor(Math.random() * 100)
+          username: subscriber.name || subscriber.email.split('@')[0],
+          status: subscriber.subscription_status === 'active' ? 'active' : 'inactive',
+          planName: subscriber.plan?.name || 'Free',
+          lastLogin: subscriber.created_at, // Use created_at as fallback
+          usage: 0, // Not tracked
+          revenue: subscriber.plan?.price || 0
         }));
         setSubscribers(enhancedData);
       } else {
@@ -140,11 +141,8 @@ export default function Subscribers() {
                 <span className="stat-label">Total Subscribers</span>
               </div>
               <div className="stat-value">{subscribers.length}</div>
-              <div className="stat-trend positive">
-                <svg viewBox="0 0 20 20" fill="currentColor">
-                  <path fillRule="evenodd" d="M3.293 9.707a1 1 0 010-1.414l6-6a1 1 0 011.414 0l6 6a1 1 0 01-1.414 1.414L11 5.414V17a1 1 0 11-2 0V5.414L4.707 9.707a1 1 0 01-1.414 0z" clipRule="evenodd" />
-                </svg>
-                <span>+{Math.floor(Math.random() * 20 + 5)}% this month</span>
+              <div className="stat-trend">
+                <span className="text-slate-400">All time</span>
               </div>
             </div>
 
@@ -153,37 +151,28 @@ export default function Subscribers() {
                 <span className="stat-label">Active Subscribers</span>
               </div>
               <div className="stat-value">{subscribers.filter(s => s.status === 'active').length}</div>
-              <div className="stat-trend positive">
-                <svg viewBox="0 0 20 20" fill="currentColor">
-                  <path fillRule="evenodd" d="M3.293 9.707a1 1 0 010-1.414l6-6a1 1 0 011.414 0l6 6a1 1 0 01-1.414 1.414L11 5.414V17a1 1 0 11-2 0V5.414L4.707 9.707a1 1 0 01-1.414 0z" clipRule="evenodd" />
-                </svg>
-                <span>+{Math.floor(Math.random() * 15 + 8)}% this week</span>
+              <div className="stat-trend">
+                <span className="text-slate-400">{subscribers.length > 0 ? Math.round((subscribers.filter(s => s.status === 'active').length / subscribers.length) * 100) : 0}% of total</span>
               </div>
             </div>
 
             <div className="stat-card-shopify">
               <div className="stat-header">
-                <span className="stat-label">Premium Subscribers</span>
+                <span className="stat-label">Paid Subscribers</span>
               </div>
-              <div className="stat-value">{subscribers.filter(s => s.plan !== 'Free').length}</div>
-              <div className="stat-trend positive">
-                <svg viewBox="0 0 20 20" fill="currentColor">
-                  <path fillRule="evenodd" d="M3.293 9.707a1 1 0 010-1.414l6-6a1 1 0 011.414 0l6 6a1 1 0 01-1.414 1.414L11 5.414V17a1 1 0 11-2 0V5.414L4.707 9.707a1 1 0 01-1.414 0z" clipRule="evenodd" />
-                </svg>
-                <span>+{Math.floor(Math.random() * 25 + 10)}% this month</span>
+              <div className="stat-value">{subscribers.filter(s => s.planName !== 'Free').length}</div>
+              <div className="stat-trend">
+                <span className="text-slate-400">{subscribers.length > 0 ? Math.round((subscribers.filter(s => s.planName !== 'Free').length / subscribers.length) * 100) : 0}% of total</span>
               </div>
             </div>
 
             <div className="stat-card-shopify">
               <div className="stat-header">
-                <span className="stat-label">Total Revenue</span>
+                <span className="stat-label">Monthly Revenue</span>
               </div>
               <div className="stat-value">${subscribers.reduce((sum, s) => sum + s.revenue, 0).toLocaleString()}</div>
-              <div className="stat-trend positive">
-                <svg viewBox="0 0 20 20" fill="currentColor">
-                  <path fillRule="evenodd" d="M3.293 9.707a1 1 0 010-1.414l6-6a1 1 0 011.414 0l6 6a1 1 0 01-1.414 1.414L11 5.414V17a1 1 0 11-2 0V5.414L4.707 9.707a1 1 0 01-1.414 0z" clipRule="evenodd" />
-                </svg>
-                <span>+{Math.floor(Math.random() * 18 + 12)}% this month</span>
+              <div className="stat-trend">
+                <span className="text-slate-400">From active plans</span>
               </div>
             </div>
           </div>
@@ -270,7 +259,7 @@ export default function Subscribers() {
                           </span>
                         </td>
                         <td className="py-4 px-4">
-                          <span className="text-sm font-medium text-slate-200">{subscriber.plan}</span>
+                          <span className="text-sm font-medium text-slate-200">{subscriber.planName}</span>
                         </td>
                         <td className="py-4 px-4">
                           <span className="text-sm text-slate-400">{formatDate(subscriber.lastLogin)}</span>
@@ -291,6 +280,12 @@ export default function Subscribers() {
                         </td>
                         <td className="py-4 px-4">
                           <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => router.push(`/admin/subscribers/${subscriber.id}/api-keys`)}
+                              className="text-blue-400 hover:text-blue-300 text-sm font-medium transition-colors"
+                            >
+                              API Keys
+                            </button>
                             <button className="text-emerald-400 hover:text-emerald-300 text-sm font-medium transition-colors">Edit</button>
                             <button className="text-red-400 hover:text-red-300 text-sm font-medium transition-colors">Delete</button>
                           </div>

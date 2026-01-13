@@ -1,54 +1,52 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
+import NewOnboarding from './NewOnboarding';
 
 const navigation = [
   {
     name: 'Main',
     items: [
       { name: 'Dashboard', href: '/admin', icon: 'dashboard', current: false },
-      { name: 'Subscribers', href: '/admin/subscribers', icon: 'users', current: false },
     ]
   },
   {
     name: 'Analytics',
     items: [
       { name: 'Analytics Overview', href: '/admin/analytics', icon: 'chart', current: false },
-      { name: 'A/B Tests', href: '/admin/ab-tests', icon: 'activity', current: false },
-      { name: 'Heatmaps', href: '/admin/heatmaps', icon: 'target', current: false },
+      { name: 'Heatmaps', href: '/admin/analytics#heatmaps', icon: 'activity', current: false },
+      { name: 'A/B Tests', href: '/admin/analytics#ab-tests', icon: 'target', current: false },
     ]
   },
   {
     name: 'Business',
     items: [
-      { name: 'Plans', href: '/admin/plans', icon: 'credit-card', current: false },
-      { name: 'Checkout Links', href: '/admin/checkout-links', icon: 'link', current: false },
-      { name: 'Pricing Table', href: '/admin/pricing-table', icon: 'table', current: false },
+      { name: 'Subscribers', href: '/admin/subscribers', icon: 'users', current: false },
       { name: 'Chat with Customers', href: '/admin/support-messages', icon: 'message-circle', current: false },
+      { name: 'Payments', href: '/admin/payments', icon: 'credit-card', current: false },
+
     ]
   },
   {
-    name: 'Content',
+    name: 'Frontend',
     items: [
       { name: 'Pages', href: '/admin/pages', icon: 'file-text', current: false },
-      { name: 'Reserved Pages', href: '/admin/reserved-pages', icon: 'palette', current: false },
       { name: 'Blog', href: '/admin/blog', icon: 'edit', current: false },
-    ]
-  },
-  {
-    name: 'Email',
-    items: [
-      { name: 'Email Management', href: '/admin/email-management', icon: 'mail', current: false },
     ]
   },
   {
     name: 'Backend',
     items: [
+      { name: 'API Routes', href: '/admin/backend/routes', icon: 'code', current: false },
       { name: 'Database', href: '/admin/database', icon: 'database', current: false },
       { name: 'Storage', href: '/admin/storage', icon: 'hard-drive', current: false },
-      { name: 'API Routes', href: '/admin/backend/routes', icon: 'code', current: false },
       { name: 'Server Logs', href: '/admin/backend/server-logs', icon: 'file-text', current: false },
-      { name: 'Integrations', href: '/admin/integrations', icon: 'zap', current: false },
+    ]
+  },
+  {
+    name: 'Communications',
+    items: [
+      { name: 'Email Management', href: '/admin/email-management', icon: 'mail', current: false },
       { name: 'Connect Telegram', href: '/admin/telegram-bots', icon: 'message-square', current: false },
     ]
   },
@@ -226,6 +224,7 @@ export default function AdminLayout({ children, title = 'Dashboard' }) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [user, setUser] = useState(cachedUser);
   const [loading, setLoading] = useState(!cachedUser);
+  const [showOnboarding, setShowOnboarding] = useState(false);
 
   // Set current navigation item based on current route
   const currentNavigation = navigation.map(section => ({
@@ -252,6 +251,37 @@ export default function AdminLayout({ children, title = 'Dashboard' }) {
 
     checkAuth();
   }, [router.pathname]);
+
+  // Handle window resize to close mobile menu when screen becomes larger
+  useEffect(() => {
+    const handleResize = () => {
+      // Close mobile menu when screen becomes larger (desktop view)
+      if (window.innerWidth >= 1024) { // lg breakpoint
+        setIsMobileMenuOpen(false);
+      }
+    };
+
+    // Add resize event listener
+    window.addEventListener('resize', handleResize);
+
+    // Clean up event listener
+    return () => {
+      window.removeEventListener('resize', handleResize);
+    };
+  }, []);
+
+  // Initialize mobile menu state based on screen size on initial load
+  useEffect(() => {
+    const checkInitialScreenSize = () => {
+      if (window.innerWidth < 1024) {
+        // On mobile, keep menu closed by default
+        setIsMobileMenuOpen(false);
+      }
+    };
+
+    // Run on initial load
+    checkInitialScreenSize();
+  }, []);
 
   const checkAuth = async (retryCount = 0) => {
     // Prevent concurrent auth checks
@@ -428,33 +458,18 @@ export default function AdminLayout({ children, title = 'Dashboard' }) {
           </div>
 
           <div className="flex items-center gap-4">
-            {/* Search */}
-            <div className="hidden md:block">
-              <div className="relative">
-                <input
-                  type="text"
-                  placeholder="Search..."
-                  className="w-64 pl-10 pr-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-sm text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-emerald-400"
-                />
-                <svg
-                  className="absolute left-3 top-2.5 w-4 h-4 text-slate-400"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="m21 21-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                </svg>
-              </div>
-            </div>
-
-            {/* Notifications */}
-            <button className="p-2 text-slate-400 hover:text-slate-100 hover:bg-slate-700 rounded-lg relative">
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 17h5l-3.5-3.5a5.98 5.98 0 000-8.48L18.5 3.5 15 7V3a1 1 0 00-1-1h-4a1 1 0 00-1 1v4L5.5 3.5 7.93 5.93a5.98 5.98 0 000 8.48L5 17h5m5 0v1a3 3 0 11-6 0v-1m6 0H9" />
-              </svg>
-              <span className="absolute top-0 right-0 w-2 h-2 bg-red-500 rounded-full"></span>
-            </button>
             
+            {/* Help/Onboarding Button */}
+            <button
+              onClick={() => setShowOnboarding(true)}
+              className="p-2 text-slate-400 hover:text-slate-100 hover:bg-slate-700 rounded-lg relative"
+              title="Help & Onboarding"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </button>
+
             {/* Profile */}
             {user && (
               <div className="flex items-center gap-2">
@@ -472,6 +487,7 @@ export default function AdminLayout({ children, title = 'Dashboard' }) {
         {/* Page Content */}
         <main id="main-content" className="admin-content" role="main" aria-label={`${title} page content`}>
           {children}
+          <NewOnboarding isOpen={showOnboarding} onClose={() => setShowOnboarding(false)} />
         </main>
       </div>
 

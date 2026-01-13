@@ -5,9 +5,9 @@ import AIProviderService from '../../../services/ai-provider.js';
 import { quickValidate, generateValidationReport } from '../../../lib/ai-code-validator.js';
 import { saveConversation, addMessage } from '../../../lib/ai-conversation-init.js';
 import crypto from 'crypto';
+import db from '../../../lib/database';
 
 const SETTINGS_FILE = path.join(process.cwd(), 'data', 'ai-settings.json');
-const USAGE_FILE = path.join(process.cwd(), 'data', 'ai-usage.json');
 const RULES_FILE = path.join(process.cwd(), 'data', 'reserved-page-rules.json');
 const CONTEXT_FILE = path.join(process.cwd(), 'data', 'ai-context.json');
 const COMPONENTS_FILE = path.join(process.cwd(), 'data', 'reserved-components-context.json');
@@ -64,29 +64,20 @@ function getComponentContext() {
   }
 }
 
-function trackUsage(tokensUsed, estimatedCost) {
+function trackUsage(tokensUsed, estimatedCost, model = null, provider = null) {
   try {
-    const usageData = {
-      timestamp: new Date().toISOString(),
-      tokens_used: tokensUsed,
-      estimated_cost: estimatedCost,
-      month: new Date().toISOString().slice(0, 7),
-      type: 'reserved-page-generation'
-    };
+    const month = new Date().toISOString().slice(0, 7);
 
-    let allUsage = [];
-    if (fs.existsSync(USAGE_FILE)) {
-      const existingData = fs.readFileSync(USAGE_FILE, 'utf8');
-      allUsage = JSON.parse(existingData);
-    }
-
-    allUsage.push(usageData);
-
-    if (allUsage.length > 1000) {
-      allUsage = allUsage.slice(-1000);
-    }
-
-    fs.writeFileSync(USAGE_FILE, JSON.stringify(allUsage, null, 2));
+    db.run(`INSERT INTO ai_usage_logs (tokens_used, estimated_cost, usage_type, model, provider, month)
+            VALUES (?, ?, ?, ?, ?, ?)`,
+      [tokensUsed, estimatedCost, 'reserved-page-generation', model, provider, month],
+      function(err) {
+        if (err) {
+          console.error('Error tracking usage in database:', err);
+        } else {
+          console.log('✅ Usage tracked in database with ID:', this.lastID);
+        }
+      });
   } catch (error) {
     console.error('Error tracking usage:', error);
   }
@@ -243,6 +234,18 @@ ${existingCode ? `## EXISTING CODE TO MODIFY:\n${existingCode}` : ''}
    - Handle loading states properly
 6. **Route Validation**: Never hardcode routes - use the provided route mappings
 7. **Context Awareness**: The page will be injected with additional functionality - don't conflict with reserved-page-injector.js
+
+🔒 CRITICAL - MANDATORY PLATFORM FEATURES (NEVER REMOVE OR OVERRIDE):
+✓ Analytics & Heatmap: /analytics.js and /heatmap.js are automatically loaded globally via _app.js
+  - Provide page view tracking, click tracking, form tracking, A/B testing, heatmap recording
+  - Available via window.Analytics and window.HeatmapIntegration objects
+  - Do NOT add duplicate tracking code or custom analytics
+✓ Support Chat Widget: SupportWidget component is rendered globally on all pages via _app.js
+  - Provides customer support chat functionality
+  - Automatically visible based on admin settings (public or subscribers_only)
+  - Do NOT create conflicting chat widgets, floating buttons, or support forms
+✓ These are application-level features that work across ALL pages automatically
+✓ Focus on creating the page-specific functionality - platform features are already handled
 
 ## FUNCTION IMPLEMENTATION REQUIREMENTS:
 - Define ALL functions in global scope or ensure they're accessible when called
@@ -464,7 +467,7 @@ async function handler(req, res) {
     // Track usage (only for server keys, not user keys)
     if (!usingUserKey) {
       console.log('🏠 Tracking server usage...');
-      trackUsage(tokensUsed, estimatedCost);
+      trackUsage(tokensUsed, estimatedCost, result.model, result.provider);
 
       // Update monthly usage in settings
       const newMonthlyUsage = (settings.current_month_usage || 0) + estimatedCost;

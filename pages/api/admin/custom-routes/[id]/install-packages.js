@@ -3,21 +3,22 @@ import path from 'path';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import fs from 'fs';
+import { DATABASE_URL } from '@/lib/config';
+import { withAdminAuth } from '@/lib/auth-middleware.js';
 
 const execAsync = promisify(exec);
 
-const dbPath = process.env.NODE_ENV === 'production'
-  ? '/tmp/site_builder.db'
-  : path.join(process.cwd(), '..', 'mighai (copy)', 'site_builder.db');
+// Extract the database path from the DATABASE_URL
+const dbPath = DATABASE_URL.replace('sqlite:', '');
 
-export default async function handler(req, res) {
+async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
   const { id } = req.query;
 
-  if (!req.session || !req.session.passport || !req.session.passport.user) {
+  if (!req.user || req.user.role !== 'admin') {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
@@ -119,3 +120,5 @@ export default async function handler(req, res) {
     }
   );
 }
+
+export default withAdminAuth(handler);

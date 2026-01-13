@@ -37,20 +37,6 @@ export default function MonetizationHub() {
       )
     },
     {
-      label: 'Pricing Table',
-      icon: '📊',
-      content: (
-        <div>
-          <p className="text-slate-400 mb-6">Generate pricing table code for your website</p>
-          <iframe
-            src="/admin/pricing-table"
-            className="w-full h-[600px] border border-slate-700 rounded-lg"
-            title="Pricing Table Generator"
-          />
-        </div>
-      )
-    },
-    {
       label: 'Checkout Links',
       icon: '🔗',
       content: (

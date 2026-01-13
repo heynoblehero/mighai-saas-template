@@ -529,10 +529,10 @@ export default function AnalyticsTest() {
                   <a href="/admin/analytics" className="block bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-2 rounded text-center text-sm transition-colors">
                     📊 Analytics Dashboard
                   </a>
-                  <a href="/admin/ab-tests" className="block bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-2 rounded text-center text-sm transition-colors">
+                  <a href="/admin/analytics#ab-tests" className="block bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-2 rounded text-center text-sm transition-colors">
                     🧪 A/B Tests
                   </a>
-                  <a href="/admin/heatmaps" className="block bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-2 rounded text-center text-sm transition-colors">
+                  <a href="/admin/analytics#heatmaps" className="block bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-2 rounded text-center text-sm transition-colors">
                     🎯 Heatmap Setup
                   </a>
                   <a href="/test-analytics" className="block bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-2 rounded text-center text-sm transition-colors">

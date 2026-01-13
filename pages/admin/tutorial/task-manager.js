@@ -333,7 +333,7 @@ Comments Table:
       `,
       action: {
         label: 'Create Landing Page',
-        link: '/admin/reserved-pages/landing-page',
+        link: '/admin/pages',
       },
       quiz: [
         {

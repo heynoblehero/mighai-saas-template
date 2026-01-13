@@ -423,10 +423,10 @@ export default function TestAnalytics() {
                 <a href="/admin/analytics" className="block bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded text-center text-sm">
                   Analytics Dashboard
                 </a>
-                <a href="/admin/ab-tests" className="block bg-green-600 hover:bg-green-700 text-white px-3 py-2 rounded text-center text-sm">
+                <a href="/admin/analytics#ab-tests" className="block bg-green-600 hover:bg-green-700 text-white px-3 py-2 rounded text-center text-sm">
                   A/B Tests
                 </a>
-                <a href="/admin/heatmaps" className="block bg-purple-600 hover:bg-purple-700 text-white px-3 py-2 rounded text-center text-sm">
+                <a href="/admin/analytics#heatmaps" className="block bg-purple-600 hover:bg-purple-700 text-white px-3 py-2 rounded text-center text-sm">
                   Heatmap Setup
                 </a>
                 <a href="/admin/integrations" className="block bg-orange-600 hover:bg-orange-700 text-white px-3 py-2 rounded text-center text-sm">

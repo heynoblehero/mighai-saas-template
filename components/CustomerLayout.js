@@ -357,6 +357,7 @@ export default function CustomerLayout({ children, title = 'Dashboard' }) {
               <li><a href="/dashboard" class="nav-link active">🏠 Dashboard</a></li>
               <li><a href="/dashboard/profile" class="nav-link">👤 Profile</a></li>
               <li><a href="/dashboard/upgrade" class="nav-link">💳 Billing</a></li>
+              <li><a href="/dashboard/api-keys" class="nav-link">🔑 API Keys</a></li>
               <li><a href="/" class="nav-link">🌐 Home</a></li>
             </ul>
           </nav>

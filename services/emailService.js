@@ -17,8 +17,8 @@ function getResendClient() {
   return resend;
 }
 
-// Database setup
-const dbPath = path.join(__dirname, '..', 'site_builder.db');
+// Database setup - use process.cwd() for consistency with Next.js
+const dbPath = path.join(process.cwd(), 'site_builder.db');
 
 class EmailService {
   constructor() {

@@ -18,11 +18,7 @@
       "/admin/dashboard",
       "/admin/users",
       "/admin/settings",
-      "/admin/reserved-pages",
-      "/admin/reserved-pages/customer-login",
-      "/admin/reserved-pages/customer-dashboard",
-      "/admin/reserved-pages/customer-profile",
-      "/admin/reserved-pages/customer-billing"
+      "/admin/pages"
     ],
     "route_mappings": {
       "profile": "/dashboard/profile",

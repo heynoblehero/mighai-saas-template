@@ -1,9 +1,9 @@
 import sqlite3 from 'sqlite3';
 import path from 'path';
+import { DATABASE_URL } from '../../../lib/config';
 
-const dbPath = process.env.NODE_ENV === 'production'
-  ? '/tmp/site_builder.db'
-  : path.join(process.cwd(), '..', 'mighai (copy)', 'site_builder.db');
+// Extract the database path from the DATABASE_URL
+const dbPath = DATABASE_URL.replace('sqlite:', '');
 
 export default async function handler(req, res) {
   if (!req.session || !req.session.passport || !req.session.passport.user) {

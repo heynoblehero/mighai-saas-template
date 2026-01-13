@@ -87,7 +87,7 @@ const RESERVED_PAGE_SLUGS = [
 const dbPath = process.env.DB_PATH || (
   process.env.NODE_ENV === 'production'
     ? path.join('/app/data', 'site_builder.db')
-    : path.join(process.cwd(), 'site_builder.db')
+    : path.join(__dirname, 'site_builder.db')
 );
 console.log('Database path:', dbPath);
 const db = new sqlite3.Database(dbPath, (err) => {
@@ -617,6 +617,21 @@ db.serialize(() => {
   )`);
 
 
+  // AI usage tracking table
+  db.run(`CREATE TABLE IF NOT EXISTS ai_usage_logs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER,
+    tokens_used INTEGER NOT NULL,
+    estimated_cost REAL NOT NULL,
+    usage_type TEXT,
+    model TEXT,
+    provider TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    month TEXT NOT NULL,
+    FOREIGN KEY (user_id) REFERENCES users (id)
+  )`);
+
+
   // Uploaded files table
   db.run(`CREATE TABLE IF NOT EXISTS uploaded_files (
     id TEXT PRIMARY KEY,
@@ -789,6 +804,9 @@ db.serialize(() => {
     packages TEXT DEFAULT '[]',
     installed_packages TEXT DEFAULT '[]',
     status TEXT DEFAULT 'draft' CHECK (status IN ('draft', 'active', 'inactive')),
+    auth_required BOOLEAN DEFAULT 0,
+    rate_limit_per_day INTEGER,
+    plan_access TEXT DEFAULT 'public',
     created_by INTEGER NOT NULL,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -892,6 +910,31 @@ db.serialize(() => {
   db.run(`ALTER TABLE users ADD COLUMN last_login_ip TEXT NULL`, (err) => {
     if (err && !err.message.includes('duplicate column name')) {
       console.error('Error adding last_login_ip column:', err);
+    }
+  });
+
+  // Subscriber API Keys Table - For programmatic API access
+  db.run(`CREATE TABLE IF NOT EXISTS subscriber_api_keys (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    key_hash TEXT NOT NULL UNIQUE,
+    key_prefix TEXT NOT NULL,
+    name TEXT DEFAULT 'Default Key',
+    is_active BOOLEAN DEFAULT 1,
+    last_used_at DATETIME,
+    expires_at DATETIME,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+  )`);
+
+  // Create index for API key lookups
+  db.run(`CREATE INDEX IF NOT EXISTS idx_api_keys_hash ON subscriber_api_keys(key_hash)`);
+  db.run(`CREATE INDEX IF NOT EXISTS idx_api_keys_user ON subscriber_api_keys(user_id)`);
+
+  // Add allow_api_key_access column to custom_api_routes
+  db.run(`ALTER TABLE custom_api_routes ADD COLUMN allow_api_key_access BOOLEAN DEFAULT 0`, (err) => {
+    if (err && !err.message.includes('duplicate column name')) {
+      console.error('Error adding allow_api_key_access column:', err);
     }
   });
 });
@@ -1658,11 +1701,21 @@ nextApp.prepare()
     }
   });
 
+  server.get('/api/plans/:id', requireAuth, (req, res) => {
+    const { id } = req.params;
+
+    db.get('SELECT * FROM plans WHERE id = ?', [id], (err, plan) => {
+      if (err) return res.status(500).json({ error: err.message });
+      if (!plan) return res.status(404).json({ error: 'Plan not found' });
+      res.json(plan);
+    });
+  });
+
   server.put('/api/plans/:id', requireAuth, (req, res) => {
     const { id } = req.params;
     const { name, api_limit, page_view_limit, price, is_active } = req.body;
-    
-    db.run(`UPDATE plans SET name = ?, api_limit = ?, page_view_limit = ?, price = ?, 
+
+    db.run(`UPDATE plans SET name = ?, api_limit = ?, page_view_limit = ?, price = ?,
             is_active = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
       [name, api_limit, page_view_limit, price, is_active, id],
       function(err) {

@@ -1,9 +1,9 @@
 import sqlite3 from 'sqlite3';
 import path from 'path';
+import { DATABASE_URL } from '../../../../lib/config';
 
-const dbPath = process.env.NODE_ENV === 'production'
-  ? '/tmp/site_builder.db'
-  : path.join(process.cwd(), '..', 'mighai (copy)', 'site_builder.db');
+// Extract the database path from the DATABASE_URL
+const dbPath = DATABASE_URL.replace('sqlite:', '');
 
 export default async function handler(req, res) {
   const db = new sqlite3.Database(dbPath);
@@ -53,7 +53,7 @@ export default async function handler(req, res) {
 
   } else if (req.method === 'POST') {
     // Create new custom API route
-    const { name, slug, method, description, code, packages, auth_required, rate_limit_per_day, plan_access } = req.body;
+    const { name, slug, method, description, code, packages, auth_required, rate_limit_per_day, plan_access, allow_api_key_access } = req.body;
 
     if (!name || !slug || !method || !code) {
       db.close();
@@ -76,9 +76,9 @@ export default async function handler(req, res) {
 
     db.run(
       `INSERT INTO custom_api_routes
-       (name, slug, method, description, code, packages, auth_required, rate_limit_per_day, plan_access, created_by)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [name, sanitizedSlug, method.toUpperCase(), description || '', code, packagesJson, auth_required ? 1 : 0, rate_limit_per_day || null, finalPlanAccess, userId],
+       (name, slug, method, description, code, packages, auth_required, rate_limit_per_day, plan_access, allow_api_key_access, created_by)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [name, sanitizedSlug, method.toUpperCase(), description || '', code, packagesJson, auth_required ? 1 : 0, rate_limit_per_day || null, finalPlanAccess, allow_api_key_access ? 1 : 0, userId],
       function(err) {
         if (err) {
           console.error('Error creating custom route:', err);

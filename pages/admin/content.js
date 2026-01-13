@@ -43,9 +43,9 @@ export default function ContentHub() {
         <div>
           <p className="text-slate-400 mb-6">Customize landing, pricing, and other reserved pages</p>
           <iframe
-            src="/admin/reserved-pages"
+            src="/admin/pages"
             className="w-full h-[600px] border border-slate-700 rounded-lg"
-            title="Reserved Pages"
+            title="Pages Management"
           />
         </div>
       )

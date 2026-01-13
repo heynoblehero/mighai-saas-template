@@ -1,6 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import fs from 'fs';
 import path from 'path';
+import db from '../../../lib/database';
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -116,22 +117,22 @@ Provide a detailed description that a developer can use to recreate this exact l
 
 function updateAIUsage(settings, usage) {
   try {
-    const usagePath = path.join(process.cwd(), 'data', 'ai-usage.json');
-    let usageData = { month: new Date().toISOString().slice(0, 7), total_tokens: 0, requests: 0 };
+    const tokensUsed = (usage.input_tokens || 0) + (usage.output_tokens || 0);
+    const month = new Date().toISOString().slice(0, 7);
 
-    if (fs.existsSync(usagePath)) {
-      usageData = JSON.parse(fs.readFileSync(usagePath, 'utf8'));
-    }
+    // Calculate estimated cost (this is a simplified calculation - you might want to adjust based on actual pricing)
+    const estimatedCost = tokensUsed * 0.00002; // Example: $0.02 per 1000 tokens
 
-    const currentMonth = new Date().toISOString().slice(0, 7);
-    if (usageData.month !== currentMonth) {
-      usageData = { month: currentMonth, total_tokens: 0, requests: 0 };
-    }
-
-    usageData.total_tokens += (usage.input_tokens + usage.output_tokens);
-    usageData.requests += 1;
-
-    fs.writeFileSync(usagePath, JSON.stringify(usageData, null, 2));
+    db.run(`INSERT INTO ai_usage_logs (tokens_used, estimated_cost, usage_type, model, provider, month)
+            VALUES (?, ?, ?, ?, ?, ?)`,
+      [tokensUsed, estimatedCost, 'layout-analysis', usage.model || null, usage.provider || null, month],
+      function(err) {
+        if (err) {
+          console.error('Error tracking usage in database:', err);
+        } else {
+          console.log('✅ Layout analysis usage tracked in database with ID:', this.lastID);
+        }
+      });
   } catch (error) {
     console.error('Error updating AI usage:', error);
   }
