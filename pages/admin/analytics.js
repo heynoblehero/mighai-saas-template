@@ -68,18 +68,6 @@ export default function Analytics() {
   }, []);
 
   // Heatmap state
-  const [heatmapConfig, setHeatmapConfig] = useState({
-    hotjar: { enabled: false, hjid: '', hjsv: '6' },
-    clarity: { enabled: false, clarity_id: '' },
-    custom_scripts: []
-  });
-  const [heatmapSessions, setHeatmapSessions] = useState([]);
-  const [selectedSession, setSelectedSession] = useState(null);
-  const [heatmapLoading, setHeatmapLoading] = useState(false);
-  const [heatmapError, setHeatmapError] = useState(null);
-  const [saving, setSaving] = useState(false);
-  const [showCustomScript, setShowCustomScript] = useState(false);
-  const [customScript, setCustomScript] = useState({ name: '', script: '' });
   const [heatmapFilters, setHeatmapFilters] = useState({
     page_path: '',
     start_date: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
@@ -183,7 +171,7 @@ export default function Analytics() {
     if (activeTab === 'analytics') {
       fetchAnalyticsData();
     } else if (activeTab === 'heatmaps') {
-      loadHeatmapConfig();
+      loadHeatmapData();
     } else if (activeTab === 'ab-tests') {
       fetchExperiments();
     }
@@ -196,31 +184,9 @@ export default function Analytics() {
     }
   }, [heatmapData, heatmapViewType]);
 
-  // Heatmap functions - uses localStorage for configuration
-  const loadHeatmapConfig = () => {
-    setHeatmapLoading(true);
-    try {
-      const saved = typeof window !== 'undefined' ? localStorage.getItem('heatmapConfig') : null;
-      if (saved) {
-        const data = JSON.parse(saved);
-        const defaultConfig = {
-          hotjar: { enabled: false, hjid: '', hjsv: '6' },
-          clarity: { enabled: false, clarity_id: '' },
-          custom_scripts: []
-        };
-        setHeatmapConfig({
-          hotjar: { ...defaultConfig.hotjar, ...data.hotjar },
-          clarity: { ...defaultConfig.clarity, ...data.clarity },
-          custom_scripts: Array.isArray(data.custom_scripts) ? data.custom_scripts : defaultConfig.custom_scripts
-        });
-      }
-      // Also fetch in-house heatmap pages
-      fetchHeatmapPages();
-    } catch (error) {
-      console.error('Failed to load heatmap config:', error);
-    } finally {
-      setHeatmapLoading(false);
-    }
+  // Load in-house heatmap data
+  const loadHeatmapData = () => {
+    fetchHeatmapPages();
   };
 
   // Fetch pages with heatmap data
@@ -374,68 +340,6 @@ export default function Analytics() {
     } finally {
       setResultsLoading(false);
     }
-  };
-
-  const saveHeatmapConfig = () => {
-    setSaving(true);
-    try {
-      localStorage.setItem('heatmapConfig', JSON.stringify(heatmapConfig));
-      alert('Heatmap configuration saved successfully!');
-    } catch (error) {
-      console.error('Failed to save config:', error);
-      alert('Failed to save configuration');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const addCustomScript = () => {
-    if (!customScript.name || !customScript.script) {
-      alert('Please provide both name and script');
-      return;
-    }
-
-    setHeatmapConfig(prev => ({
-      ...prev,
-      custom_scripts: [...prev.custom_scripts, { ...customScript, id: Date.now() }]
-    }));
-
-    setCustomScript({ name: '', script: '' });
-    setShowCustomScript(false);
-  };
-
-  const removeCustomScript = (id) => {
-    setHeatmapConfig(prev => ({
-      ...prev,
-      custom_scripts: prev.custom_scripts.filter(script => script.id !== id)
-    }));
-  };
-
-  const generateImplementationCode = () => {
-    let code = '<!-- Add this to your page head section -->\n';
-    code += '<script src="/analytics.js"></script>\n';
-    code += '<script>\n';
-
-    if (heatmapConfig.hotjar?.enabled && heatmapConfig.hotjar?.hjid) {
-      code += `  // Initialize Hotjar\n`;
-      code += `  HeatmapIntegration.initHotjar('${heatmapConfig.hotjar.hjid || ''}', ${heatmapConfig.hotjar.hjsv || '6'});\n\n`;
-    }
-
-    if (heatmapConfig.clarity?.enabled && heatmapConfig.clarity?.clarity_id) {
-      code += `  // Initialize Microsoft Clarity\n`;
-      code += `  HeatmapIntegration.initClarity('${heatmapConfig.clarity.clarity_id || ''}');\n\n`;
-    }
-
-    if (Array.isArray(heatmapConfig.custom_scripts) && heatmapConfig.custom_scripts.length > 0) {
-      code += `  // Custom tracking scripts\n`;
-      heatmapConfig.custom_scripts.forEach(script => {
-        code += `  // ${script.name || ''}\n`;
-        code += `  ${script.script || ''}\n\n`;
-      });
-    }
-
-    code += '</script>';
-    return code;
   };
 
   const handleAbTestSubmit = async (e) => {
@@ -958,48 +862,17 @@ export default function Analytics() {
   }
 
   function renderHeatmapsTab() {
-    if (heatmapLoading && heatmapSessions.length === 0) {
-      return (
-        <div className="p-6">
-          <div className="flex justify-center items-center h-64">
-            <div className="text-center">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-600 mx-auto mb-4"></div>
-              <div className="text-lg text-slate-300">Loading heatmap data...</div>
-            </div>
-          </div>
-        </div>
-      );
-    }
-
-    if (heatmapError) {
-      return (
-        <div className="p-6">
-          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">
-            <strong className="font-bold">Error! </strong>
-            <span className="block sm:inline">{heatmapError}</span>
-          </div>
-        </div>
-      );
-    }
-
     return (
       <div className="space-y-6">
-        {/* Heatmap Configuration Tab */}
+        {/* Heatmap Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h2 className="text-2xl font-bold text-slate-100">Heatmap Management</h2>
-            <p className="text-slate-400 mt-1">Track user interactions and configure heatmap services</p>
+            <h2 className="text-2xl font-bold text-slate-100">Heatmap Analytics</h2>
+            <p className="text-slate-400 mt-1">Track user interactions with built-in heatmap tracking</p>
           </div>
-          <button
-            onClick={saveHeatmapConfig}
-            disabled={saving}
-            className="mt-4 sm:mt-0 bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-600/50 text-white px-6 py-3 rounded-lg font-medium transition-colors"
-          >
-            {saving ? 'Saving...' : 'Save Configuration'}
-          </button>
         </div>
 
-        {/* Custom Heatmap Status */}
+        {/* In-House Heatmap Status */}
         <div className="bg-emerald-900/30 border border-emerald-600/50 rounded-lg p-6">
           <div className="flex items-center justify-between mb-4">
             <div>
@@ -1227,376 +1100,6 @@ export default function Analytics() {
           </div>
         </div>
 
-        {/* Third-Party Integrations Header */}
-        <div className="border-t border-slate-700 pt-6">
-          <h3 className="text-lg font-semibold text-slate-300 mb-4">Third-Party Integrations (Optional)</h3>
-          <p className="text-slate-500 text-sm mb-4">Connect external heatmap services for additional features like session recordings.</p>
-        </div>
-
-        {/* Hotjar Configuration */}
-        <div className="bg-white border border-gray-300 rounded-lg p-6">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h3 className="text-lg font-semibold text-gray-900">Hotjar</h3>
-              <p className="text-sm text-gray-600">Record user sessions and generate heatmaps</p>
-            </div>
-            <label className="flex items-center">
-              <input
-                type="checkbox"
-                checked={!!heatmapConfig.hotjar?.enabled}
-                onChange={(e) => setHeatmapConfig(prev => ({
-                  ...prev,
-                  hotjar: { ...prev.hotjar, enabled: e.target.checked }
-                }))}
-                className="rounded border-gray-300"
-              />
-              <span className="ml-2 text-sm font-medium text-gray-700">Enable</span>
-            </label>
-          </div>
-
-          {heatmapConfig.hotjar?.enabled && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Hotjar ID (hjid)
-                </label>
-                <input
-                  type="text"
-                  value={heatmapConfig.hotjar?.hjid || ''}
-                  onChange={(e) => setHeatmapConfig(prev => ({
-                    ...prev,
-                    hotjar: { ...prev.hotjar, hjid: e.target.value }
-                  }))}
-                  placeholder="1234567"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                />
-                <p className="text-xs text-gray-500 mt-1">
-                  Find this in your Hotjar dashboard under Settings → Sites & Organizations
-                </p>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Hotjar Snippet Version (hjsv)
-                </label>
-                <input
-                  type="text"
-                  value={heatmapConfig.hotjar?.hjsv || ''}
-                  onChange={(e) => setHeatmapConfig(prev => ({
-                    ...prev,
-                    hotjar: { ...prev.hotjar, hjsv: e.target.value }
-                  }))}
-                  placeholder="6"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                />
-                <p className="text-xs text-gray-500 mt-1">
-                  Usually '6' (current version)
-                </p>
-              </div>
-            </div>
-          )}
-
-          {heatmapConfig.hotjar?.enabled && (
-            <div className="mt-4 p-3 bg-orange-50 border border-orange-200 rounded">
-              <p className="text-sm text-orange-800">
-                <strong>Note:</strong> Make sure you have a Hotjar account and have added your domain to your Hotjar site settings.
-                <a
-                  href="https://help.hotjar.com/hc/en-us/articles/115009336727-How-to-Install-your-Hotjar-Tracking-Code"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-orange-600 underline ml-1"
-                >
-                  Learn more →
-                </a>
-              </p>
-            </div>
-          )}
-        </div>
-
-        {/* Microsoft Clarity Configuration */}
-        <div className="bg-white border border-gray-300 rounded-lg p-6">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h3 className="text-lg font-semibold text-gray-900">Microsoft Clarity</h3>
-              <p className="text-sm text-gray-600">Free heatmaps and session recordings</p>
-            </div>
-            <label className="flex items-center">
-              <input
-                type="checkbox"
-                checked={!!heatmapConfig.clarity?.enabled}
-                onChange={(e) => setHeatmapConfig(prev => ({
-                  ...prev,
-                  clarity: { ...prev.clarity, enabled: e.target.checked }
-                }))}
-                className="rounded border-gray-300"
-              />
-              <span className="ml-2 text-sm font-medium text-gray-700">Enable</span>
-            </label>
-          </div>
-
-          {heatmapConfig.clarity?.enabled && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Clarity Project ID
-              </label>
-              <input
-                type="text"
-                value={heatmapConfig.clarity?.clarity_id || ''}
-                onChange={(e) => setHeatmapConfig(prev => ({
-                  ...prev,
-                  clarity: { ...prev.clarity, clarity_id: e.target.value }
-                }))}
-                placeholder="abcdefghij"
-                className="w-full px-3 py-2 border border-gray-300 rounded-md"
-              />
-              <p className="text-xs text-gray-500 mt-1">
-                Find this in your Microsoft Clarity dashboard under Setup
-              </p>
-
-              <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded">
-                <p className="text-sm text-blue-800">
-                  <strong>Free:</strong> Microsoft Clarity is completely free with unlimited heatmaps and recordings.
-                  <a
-                    href="https://docs.microsoft.com/en-us/clarity/setup-and-installation/clarity-setup"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-blue-600 underline ml-1"
-                  >
-                    Get started →
-                  </a>
-                </p>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Custom Scripts */}
-        <div className="bg-white border border-gray-300 rounded-lg p-6">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h3 className="text-lg font-semibold text-gray-900">Custom Tracking Scripts</h3>
-              <p className="text-sm text-gray-600">Add custom JavaScript for other analytics tools</p>
-            </div>
-            <button
-              onClick={() => setShowCustomScript(true)}
-              className="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-sm"
-            >
-              Add Script
-            </button>
-          </div>
-
-          {/* Custom Script Form */}
-          {showCustomScript && (
-            <div className="mb-4 p-4 border border-gray-200 rounded-lg bg-gray-50">
-              <h4 className="font-medium text-gray-900 mb-3">Add Custom Script</h4>
-              <div className="space-y-3">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Script Name
-                  </label>
-                  <input
-                    type="text"
-                    value={customScript.name}
-                    onChange={(e) => setCustomScript(prev => ({ ...prev, name: e.target.value }))}
-                    placeholder="Google Analytics, FullStory, etc."
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    JavaScript Code
-                  </label>
-                  <textarea
-                    value={customScript.script}
-                    onChange={(e) => setCustomScript(prev => ({ ...prev, script: e.target.value }))}
-                    placeholder="// Your tracking code here"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md font-mono text-sm"
-                    rows="4"
-                  />
-                </div>
-                <div className="flex space-x-2">
-                  <button
-                    onClick={addCustomScript}
-                    className="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-sm"
-                  >
-                    Add Script
-                  </button>
-                  <button
-                    onClick={() => setShowCustomScript(false)}
-                    className="bg-gray-500 hover:bg-gray-600 text-white px-3 py-1 rounded text-sm"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Custom Scripts List */}
-          {Array.isArray(heatmapConfig.custom_scripts) && heatmapConfig.custom_scripts.length > 0 && (
-            <div className="space-y-2">
-              {heatmapConfig.custom_scripts.map((script) => (
-                <div key={script.id} className="flex items-center justify-between p-3 border border-gray-200 rounded-lg">
-                  <div>
-                    <h5 className="font-medium text-gray-900">{script.name}</h5>
-                    <p className="text-sm text-gray-500 font-mono">
-                      {script.script.length} characters
-                    </p>
-                  </div>
-                  <button
-                    onClick={() => removeCustomScript(script.id)}
-                    className="text-red-600 hover:text-red-900 text-sm"
-                  >
-                    Remove
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {(!Array.isArray(heatmapConfig.custom_scripts) || heatmapConfig.custom_scripts.length === 0) && !showCustomScript && (
-            <p className="text-gray-500 text-center py-4">
-              No custom scripts configured
-            </p>
-          )}
-        </div>
-
-        {/* Implementation Code */}
-        <div className="bg-gray-50 border border-gray-300 rounded-lg p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Implementation Code</h3>
-          <p className="text-sm text-gray-600 mb-3">
-            Add this code to your page templates or use our analytics script:
-          </p>
-
-          <div className="bg-gray-900 text-gray-100 p-4 rounded-lg overflow-x-auto">
-            <pre className="text-sm">
-              {generateImplementationCode()}
-            </pre>
-          </div>
-
-          <div className="mt-4 flex items-center space-x-4">
-            <button
-              onClick={() => navigator.clipboard.writeText(generateImplementationCode())}
-              className="bg-gray-600 hover:bg-gray-700 text-white px-3 py-1 rounded text-sm"
-            >
-              Copy Code
-            </button>
-            <p className="text-sm text-gray-600">
-              Our analytics.js script includes the HeatmapIntegration helper functions
-            </p>
-          </div>
-        </div>
-
-        {/* Heatmap Services Comparison */}
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
-          <h4 className="text-lg font-semibold text-blue-900 mb-4">Heatmap Services Comparison</h4>
-          <div className="overflow-x-auto">
-            <table className="min-w-full">
-              <thead>
-                <tr className="text-left">
-                  <th className="text-blue-800 font-medium p-2">Service</th>
-                  <th className="text-blue-800 font-medium p-2">Free Plan</th>
-                  <th className="text-blue-800 font-medium p-2">Features</th>
-                  <th className="text-blue-800 font-medium p-2">Best For</th>
-                </tr>
-              </thead>
-              <tbody className="text-blue-700 text-sm">
-                <tr className="border-t border-blue-200">
-                  <td className="p-2 font-medium">Microsoft Clarity</td>
-                  <td className="p-2">✅ Unlimited</td>
-                  <td className="p-2">Heatmaps, Session recordings, Insights</td>
-                  <td className="p-2">Most users (free & powerful)</td>
-                </tr>
-                <tr className="border-t border-blue-200">
-                  <td className="p-2 font-medium">Hotjar</td>
-                  <td className="p-2">Limited (35 sessions/day)</td>
-                  <td className="p-2">Heatmaps, Recordings, Surveys, Funnels</td>
-                  <td className="p-2">Advanced feedback features</td>
-                </tr>
-                <tr className="border-t border-blue-200">
-                  <td className="p-2 font-medium">FullStory</td>
-                  <td className="p-2">Limited (1000 sessions/month)</td>
-                  <td className="p-2">Complete session replay, Search</td>
-                  <td className="p-2">Detailed user behavior analysis</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        {/* Current Status */}
-        <div className="bg-white border border-gray-300 rounded-lg p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Current Configuration Status</h3>
-          <div className="space-y-3">
-            <div className="flex items-center justify-between py-2 border-b border-gray-200">
-              <span className="text-gray-700">Hotjar Integration</span>
-              <span className={`px-2 py-1 text-xs rounded ${
-                heatmapConfig.hotjar?.enabled && heatmapConfig.hotjar?.hjid
-                  ? 'bg-green-100 text-green-800'
-                  : 'bg-red-100 text-red-800'
-              }`}>
-                {heatmapConfig.hotjar?.enabled && heatmapConfig.hotjar?.hjid ? 'Active' : 'Inactive'}
-              </span>
-            </div>
-
-            <div className="flex items-center justify-between py-2 border-b border-gray-200">
-              <span className="text-gray-700">Microsoft Clarity Integration</span>
-              <span className={`px-2 py-1 text-xs rounded ${
-                heatmapConfig.clarity?.enabled && heatmapConfig.clarity?.clarity_id
-                  ? 'bg-green-100 text-green-800'
-                  : 'bg-red-100 text-red-800'
-              }`}>
-                {heatmapConfig.clarity?.enabled && heatmapConfig.clarity?.clarity_id ? 'Active' : 'Inactive'}
-              </span>
-            </div>
-
-            <div className="flex items-center justify-between py-2">
-              <span className="text-gray-700">Custom Scripts</span>
-              <span className={`px-2 py-1 text-xs rounded ${
-                Array.isArray(heatmapConfig.custom_scripts) && heatmapConfig.custom_scripts.length > 0
-                  ? 'bg-blue-100 text-blue-800'
-                  : 'bg-gray-100 text-gray-800'
-              }`}>
-                {Array.isArray(heatmapConfig.custom_scripts) ? heatmapConfig.custom_scripts.length : 0} configured
-              </span>
-            </div>
-          </div>
-        </div>
-
-        {/* External Heatmap Services Info */}
-        <div className="bg-blue-900/20 border border-blue-600/30 rounded-xl p-6">
-          <h3 className="text-lg font-semibold text-blue-300 mb-4">View Heatmap Data</h3>
-          <p className="text-slate-300 mb-4">
-            Once you've configured Hotjar or Microsoft Clarity above, you can view your heatmap data,
-            session recordings, and user behavior analytics directly in their dashboards.
-          </p>
-          <div className="flex flex-wrap gap-4">
-            {heatmapConfig.hotjar?.enabled && heatmapConfig.hotjar?.hjid && (
-              <a
-                href={`https://insights.hotjar.com/sites/${heatmapConfig.hotjar.hjid}/heatmaps`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg transition-colors"
-              >
-                Open Hotjar Dashboard
-              </a>
-            )}
-            {heatmapConfig.clarity?.enabled && heatmapConfig.clarity?.clarity_id && (
-              <a
-                href="https://clarity.microsoft.com/"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors"
-              >
-                Open Clarity Dashboard
-              </a>
-            )}
-            {(!heatmapConfig.hotjar?.enabled && !heatmapConfig.clarity?.enabled) && (
-              <p className="text-slate-400">
-                Enable Hotjar or Clarity above to start collecting heatmap data.
-              </p>
-            )}
-          </div>
-        </div>
       </div>
     );
   }

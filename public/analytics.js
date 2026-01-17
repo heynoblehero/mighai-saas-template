@@ -545,7 +545,8 @@ window.Heatmap = (function() {
   };
 })();
 
-// Auto-initialize heatmap tracking
-Heatmap.init();
+// Note: Heatmap tracking is handled by separate heatmap.js file
+// which is only loaded on non-admin pages via _app.js
+// Heatmap.init() is NOT called here to avoid duplicate tracking
 
 console.log('Analytics loaded - Session:', Analytics.sessionId, 'Visitor:', Analytics.visitorId);

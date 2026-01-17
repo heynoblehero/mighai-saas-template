@@ -66,28 +66,63 @@
     sendData: function() {
       if (!this.isRecording) return;
 
-      const dataToSend = {
-        ...heatmapData,
-        endTime: Date.now(),
-        totalClicks: heatmapData.clicks.length,
-        totalMouseMoves: heatmapData.mouseMoves.length,
-        totalScrollEvents: heatmapData.scrollData.length
-      };
+      // Send clicks as batch
+      if (heatmapData.clicks.length > 0) {
+        const clicksData = {
+          type: 'batch',
+          data: {
+            clicks: heatmapData.clicks.map(click => ({
+              session_id: heatmapData.sessionId,
+              visitor_id: window.Analytics?.visitorId || null,
+              page_path: heatmapData.pagePath,
+              page_url: heatmapData.pageUrl,
+              x: click.pageX,
+              y: click.pageY,
+              x_percent: (click.pageX / document.documentElement.scrollWidth) * 100,
+              y_percent: (click.pageY / document.documentElement.scrollHeight) * 100,
+              viewport_width: click.viewport?.width || window.innerWidth,
+              viewport_height: click.viewport?.height || window.innerHeight,
+              page_width: document.documentElement.scrollWidth,
+              page_height: document.documentElement.scrollHeight,
+              element_tag: click.target?.tagName || null,
+              element_id: click.target?.id || null,
+              element_class: click.target?.className || null,
+              element_text: click.target?.innerText || null
+            }))
+          }
+        };
 
-      fetch('/api/heatmap/data', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(dataToSend)
-      }).then(response => {
-        if (response.ok) {
-          console.log('CustomHeatmap: Data sent successfully');
-          this.clearData();
-        }
-      }).catch(err => {
-        console.warn('CustomHeatmap: Failed to send data', err);
-      });
+        fetch('/api/heatmap/track', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(clicksData)
+        }).catch(err => console.warn('CustomHeatmap: Click tracking failed', err));
+      }
+
+      // Send scroll data
+      if (heatmapData.scrollData.length > 0) {
+        const lastScroll = heatmapData.scrollData[heatmapData.scrollData.length - 1];
+        const scrollPayload = {
+          type: 'scroll',
+          data: {
+            session_id: heatmapData.sessionId,
+            visitor_id: window.Analytics?.visitorId || null,
+            page_path: heatmapData.pagePath,
+            max_scroll_percent: lastScroll?.scrollPercentage || 0,
+            viewport_height: lastScroll?.viewport?.height || window.innerHeight,
+            page_height: lastScroll?.documentHeight || document.documentElement.scrollHeight
+          }
+        };
+
+        fetch('/api/heatmap/track', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(scrollPayload)
+        }).catch(err => console.warn('CustomHeatmap: Scroll tracking failed', err));
+      }
+
+      console.log('CustomHeatmap: Data sent successfully');
+      this.clearData();
     },
 
     // Generate heatmap visualization

@@ -127,7 +127,7 @@ const PAGE_CONFIGS = {
   }
 };
 
-async function generatePage(pageType, wizardState, apiKey, provider, model) {
+async function generatePage(pageType, wizardState, apiKey, provider, model, perPageConfig = {}) {
   const pageConfig = PAGE_CONFIGS[pageType];
   if (!pageConfig) {
     throw new Error(`Unknown page type: ${pageType}`);
@@ -138,11 +138,33 @@ async function generatePage(pageType, wizardState, apiKey, provider, model) {
 
   const prompt = buildWizardPrompt(wizardState, pageType, pageConfig);
 
-  // Build the full prompt with rules context
+  // Build per-page customization section
+  let customSection = '';
+
+  if (perPageConfig.customPrompt && perPageConfig.customPrompt.trim()) {
+    customSection += `
+## ADDITIONAL INSTRUCTIONS FOR THIS PAGE
+The user has provided specific instructions for this page. IMPORTANT: Follow these instructions carefully:
+${perPageConfig.customPrompt}
+`;
+  }
+
+  if (perPageConfig.screenshots && perPageConfig.screenshots.length > 0) {
+    customSection += `
+## INSPIRATION REFERENCES
+The user has provided ${perPageConfig.screenshots.length} reference screenshot(s) specifically for this page.
+Please incorporate design elements, layout patterns, or visual styles inspired by these references.
+Make the page visually aligned with the provided inspiration while maintaining the brand colors and overall SaaS theme.
+`;
+  }
+
+  // Build the full prompt with rules context and per-page customization
   const fullPrompt = `
 You are an expert web developer creating a page for a SaaS application.
 
 ${prompt}
+
+${customSection}
 
 ${pageRules.required_elements ? `
 ## REQUIRED ELEMENTS
@@ -208,7 +230,7 @@ async function handler(req, res) {
   }
 
   const userId = authResult.user?.id || 1;
-  const { pages, apiKey, provider = 'gemini', model } = req.body;
+  const { pages, apiKey, provider = 'gemini', model, pageConfigs = {} } = req.body;
 
   if (!apiKey) {
     return res.status(400).json({ error: 'API key is required for page generation' });
@@ -229,8 +251,10 @@ async function handler(req, res) {
     }
 
     try {
-      console.log(`Generating ${pageType}...`);
-      const htmlContent = await generatePage(pageType, wizardState, apiKey, provider, model);
+      // Get per-page config if provided
+      const perPageConfig = pageConfigs[pageType] || {};
+      console.log(`Generating ${pageType}...`, perPageConfig.customPrompt ? '(with custom prompt)' : '');
+      const htmlContent = await generatePage(pageType, wizardState, apiKey, provider, model, perPageConfig);
 
       // Save to reserved-pages directory
       const pageConfig = PAGE_CONFIGS[pageType];

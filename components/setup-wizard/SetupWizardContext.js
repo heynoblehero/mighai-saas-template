@@ -197,12 +197,12 @@ export function SetupWizardProvider({ children }) {
   }, []);
 
   // Generate pages
-  const generatePages = useCallback(async (pages, apiKey, provider = 'gemini', model) => {
+  const generatePages = useCallback(async (pages, apiKey, provider = 'gemini', model, pageConfigs = {}) => {
     try {
       const response = await fetch('/api/admin/setup-wizard/generate-pages', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pages, apiKey, provider, model })
+        body: JSON.stringify({ pages, apiKey, provider, model, pageConfigs })
       });
 
       const data = await response.json();
