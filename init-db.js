@@ -270,6 +270,60 @@ db.run(`CREATE INDEX IF NOT EXISTS idx_heatmap_clicks_page ON heatmap_clicks(pag
 db.run(`CREATE INDEX IF NOT EXISTS idx_heatmap_movements_page ON heatmap_movements(page_path, created_at)`);
 db.run(`CREATE INDEX IF NOT EXISTS idx_heatmap_scroll_page ON heatmap_scroll(page_path, created_at)`);
 
+// Create setup_wizard_state table for onboarding wizard
+db.run(`
+  CREATE TABLE IF NOT EXISTS setup_wizard_state (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER UNIQUE,
+    current_step INTEGER DEFAULT 0,
+    is_completed BOOLEAN DEFAULT FALSE,
+    is_dismissed BOOLEAN DEFAULT FALSE,
+    is_minimized BOOLEAN DEFAULT FALSE,
+
+    -- Site Identity (Step 1)
+    site_name TEXT,
+    site_tagline TEXT,
+    site_description TEXT,
+
+    -- Branding (Step 2)
+    logo_url TEXT,
+    favicon_url TEXT,
+    primary_color TEXT DEFAULT '#10B981',
+    secondary_color TEXT DEFAULT '#059669',
+    accent_color TEXT DEFAULT '#34D399',
+
+    -- SaaS Details (Step 3)
+    target_audience TEXT,
+    key_features TEXT,
+    problem_solved TEXT,
+    pricing_tier_descriptions TEXT,
+
+    -- Reference Images (Step 4)
+    reference_images TEXT,
+    style_analysis TEXT,
+
+    -- API Keys (Steps 5-7)
+    ai_provider TEXT,
+    ai_api_key_configured BOOLEAN DEFAULT FALSE,
+    email_api_key_configured BOOLEAN DEFAULT FALSE,
+    payment_api_key_configured BOOLEAN DEFAULT FALSE,
+    lemonsqueezy_store_id TEXT,
+
+    -- Plans (Step 8)
+    plans_configured BOOLEAN DEFAULT FALSE,
+    plans_data TEXT,
+
+    -- Page Generation (Step 9)
+    pages_generated BOOLEAN DEFAULT FALSE,
+    generated_pages TEXT,
+
+    -- Timestamps
+    started_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    completed_at DATETIME,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  )
+`);
+
 console.log('Database tables created successfully!');
 
 db.close(() => {

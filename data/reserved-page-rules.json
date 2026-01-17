@@ -959,5 +959,247 @@
       "Usage progress bar if plan has limits",
       "Mobile responsive design"
     ]
+  },
+  "pricing-page": {
+    "name": "Pricing Page",
+    "description": "Pricing tiers comparison page with subscription options",
+    "layout_type": "public_layout",
+    "content_area": "pricing_content",
+    "required_elements": [
+      {
+        "type": "component",
+        "id": "pricingHeader",
+        "required": true,
+        "description": "Page header with title and subtitle"
+      },
+      {
+        "type": "component",
+        "id": "pricingTiers",
+        "required": true,
+        "description": "Grid of pricing tier cards (Free, Pro, Enterprise)"
+      },
+      {
+        "type": "component",
+        "id": "featureComparison",
+        "required": false,
+        "description": "Feature comparison table across tiers"
+      },
+      {
+        "type": "button",
+        "id": "ctaButtons",
+        "action": "handleSelectPlan",
+        "required": true,
+        "description": "CTA buttons for each pricing tier"
+      },
+      {
+        "type": "component",
+        "id": "faqSection",
+        "required": false,
+        "description": "Frequently asked questions about pricing"
+      }
+    ],
+    "required_functionality": [
+      {
+        "name": "fetchPlans",
+        "description": "Fetch available plans from API",
+        "api_endpoint": "/api/plans/public",
+        "method": "GET",
+        "required": true
+      },
+      {
+        "name": "handleSelectPlan",
+        "description": "Navigate to checkout for selected plan",
+        "required": true
+      }
+    ],
+    "styling_guidelines": [
+      "Highlight recommended/popular plan",
+      "Clear price display with billing cycle",
+      "Feature lists with checkmarks",
+      "Responsive grid layout",
+      "Trust indicators (money-back guarantee, etc.)"
+    ]
+  },
+  "about-page": {
+    "name": "About Page",
+    "description": "Company/product information and story page",
+    "layout_type": "public_layout",
+    "content_area": "about_content",
+    "required_elements": [
+      {
+        "type": "component",
+        "id": "heroSection",
+        "required": true,
+        "description": "Hero section with company mission"
+      },
+      {
+        "type": "component",
+        "id": "storySection",
+        "required": true,
+        "description": "Company or product story"
+      },
+      {
+        "type": "component",
+        "id": "valuesSection",
+        "required": false,
+        "description": "Core values or principles"
+      },
+      {
+        "type": "component",
+        "id": "teamSection",
+        "required": false,
+        "description": "Team members grid (optional)"
+      },
+      {
+        "type": "component",
+        "id": "ctaSection",
+        "required": true,
+        "description": "Call to action to get started"
+      }
+    ],
+    "required_functionality": [],
+    "styling_guidelines": [
+      "Professional and trustworthy design",
+      "Good use of whitespace",
+      "Engaging storytelling layout",
+      "Responsive images",
+      "Clear hierarchy"
+    ]
+  },
+  "contact-page": {
+    "name": "Contact Page",
+    "description": "Contact form and company contact information",
+    "layout_type": "public_layout",
+    "content_area": "contact_content",
+    "required_elements": [
+      {
+        "type": "component",
+        "id": "contactHeader",
+        "required": true,
+        "description": "Page header with title"
+      },
+      {
+        "type": "form",
+        "id": "contactForm",
+        "action": "handleSubmit",
+        "required": true,
+        "description": "Contact form"
+      },
+      {
+        "type": "input",
+        "id": "name",
+        "name": "name",
+        "input_type": "text",
+        "required": true,
+        "description": "Name input field"
+      },
+      {
+        "type": "input",
+        "id": "email",
+        "name": "email",
+        "input_type": "email",
+        "required": true,
+        "description": "Email input field"
+      },
+      {
+        "type": "input",
+        "id": "subject",
+        "name": "subject",
+        "input_type": "text",
+        "required": false,
+        "description": "Subject input field"
+      },
+      {
+        "type": "textarea",
+        "id": "message",
+        "name": "message",
+        "required": true,
+        "description": "Message textarea"
+      },
+      {
+        "type": "button",
+        "id": "submitButton",
+        "button_type": "submit",
+        "required": true,
+        "description": "Submit button"
+      },
+      {
+        "type": "component",
+        "id": "contactInfo",
+        "required": false,
+        "description": "Company contact information"
+      }
+    ],
+    "required_functionality": [
+      {
+        "name": "handleSubmit",
+        "description": "Submit contact form",
+        "api_endpoint": "/api/contact",
+        "method": "POST",
+        "required_fields": ["name", "email", "message"],
+        "success_message": "Thank you for your message!"
+      }
+    ],
+    "styling_guidelines": [
+      "Clean form layout",
+      "Clear validation states",
+      "Loading state for submission",
+      "Success/error feedback",
+      "Responsive design"
+    ]
+  },
+  "blog-homepage": {
+    "name": "Blog Homepage",
+    "description": "Blog listing page with posts grid",
+    "layout_type": "public_layout",
+    "content_area": "blog_content",
+    "required_elements": [
+      {
+        "type": "component",
+        "id": "blogHeader",
+        "required": true,
+        "description": "Blog header with title"
+      },
+      {
+        "type": "component",
+        "id": "featuredPost",
+        "required": false,
+        "description": "Featured/latest post highlight"
+      },
+      {
+        "type": "component",
+        "id": "postGrid",
+        "required": true,
+        "description": "Grid of blog post cards"
+      },
+      {
+        "type": "component",
+        "id": "categories",
+        "required": false,
+        "description": "Category filter/navigation"
+      },
+      {
+        "type": "component",
+        "id": "pagination",
+        "required": false,
+        "description": "Pagination for posts"
+      }
+    ],
+    "required_functionality": [
+      {
+        "name": "fetchPosts",
+        "description": "Fetch blog posts from API",
+        "api_endpoint": "/api/public/blog",
+        "method": "GET",
+        "required": true
+      }
+    ],
+    "styling_guidelines": [
+      "Card-based post layout",
+      "Featured image support",
+      "Category tags",
+      "Read time indicators",
+      "Responsive grid"
+    ]
   }
 }

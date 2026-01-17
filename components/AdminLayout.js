@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
 import NewOnboarding from './NewOnboarding';
+import SetupWizard from './setup-wizard/SetupWizard';
 
 const navigation = [
   {
@@ -225,6 +226,7 @@ export default function AdminLayout({ children, title = 'Dashboard' }) {
   const [user, setUser] = useState(cachedUser);
   const [loading, setLoading] = useState(!cachedUser);
   const [showOnboarding, setShowOnboarding] = useState(false);
+  const [showSetupWizard, setShowSetupWizard] = useState(false);
 
   // Set current navigation item based on current route
   const currentNavigation = navigation.map(section => ({
@@ -282,6 +284,28 @@ export default function AdminLayout({ children, title = 'Dashboard' }) {
     // Run on initial load
     checkInitialScreenSize();
   }, []);
+
+  // Check if setup wizard should be shown
+  useEffect(() => {
+    const checkSetupWizard = async () => {
+      try {
+        const response = await fetch('/api/admin/setup-wizard', {
+          credentials: 'include'
+        });
+        const data = await response.json();
+        if (data.success && data.shouldShow) {
+          setShowSetupWizard(true);
+        }
+      } catch (error) {
+        console.error('Error checking setup wizard:', error);
+      }
+    };
+
+    // Only check after user is authenticated
+    if (user && !loading) {
+      checkSetupWizard();
+    }
+  }, [user, loading]);
 
   const checkAuth = async (retryCount = 0) => {
     // Prevent concurrent auth checks
@@ -459,6 +483,17 @@ export default function AdminLayout({ children, title = 'Dashboard' }) {
 
           <div className="flex items-center gap-4">
             
+            {/* Setup Wizard Button */}
+            <button
+              onClick={() => setShowSetupWizard(true)}
+              className="p-2 text-slate-400 hover:text-emerald-400 hover:bg-slate-700 rounded-lg relative"
+              title="Setup Wizard"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+              </svg>
+            </button>
+
             {/* Help/Onboarding Button */}
             <button
               onClick={() => setShowOnboarding(true)}
@@ -488,6 +523,7 @@ export default function AdminLayout({ children, title = 'Dashboard' }) {
         <main id="main-content" className="admin-content" role="main" aria-label={`${title} page content`}>
           {children}
           <NewOnboarding isOpen={showOnboarding} onClose={() => setShowOnboarding(false)} />
+          {showSetupWizard && <SetupWizard onClose={() => setShowSetupWizard(false)} />}
         </main>
       </div>
 
