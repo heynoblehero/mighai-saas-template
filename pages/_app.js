@@ -12,14 +12,15 @@ export default function App({ Component, pageProps }) {
 
   return (
     <>
-      {/* Analytics and Heatmap Scripts */}
+      {/* Analytics Script - all pages */}
       <Script src="/analytics.js" strategy="afterInteractive" />
-      <Script src="/heatmap.js" strategy="afterInteractive" />
+
+      {/* Heatmap and Support Widget - only on non-admin pages */}
+      {!isAdminPage && <Script src="/heatmap.js" strategy="afterInteractive" />}
 
       {/* Main Component */}
       {React.createElement(Component, pageProps)}
 
-      {/* Support Chat Widget - Only on non-admin pages */}
       {!isAdminPage && <SupportWidget />}
     </>
   )
