@@ -32,18 +32,25 @@ async function updateEmailSettings(req, res) {
   try {
     const { admin_email, from_email, from_name, resend_api_key, email_notifications } = req.body;
 
-    if (!admin_email || !from_email || !from_name) {
+    // Fetch existing settings to allow partial updates
+    const existingSettings = await emailService.getEmailSettings();
+
+    // Merge provided values with existing (provided values take precedence)
+    const settings = {
+      admin_email: admin_email || existingSettings.admin_email,
+      from_email: from_email || existingSettings.from_email,
+      from_name: from_name || existingSettings.from_name,
+      email_notifications: email_notifications !== undefined
+        ? Boolean(email_notifications)
+        : existingSettings.email_notifications
+    };
+
+    // Validate merged settings have required fields
+    if (!settings.admin_email || !settings.from_email || !settings.from_name) {
       return res.status(400).json({ error: 'Admin email, from email, and from name are required' });
     }
 
-    // Only update API key if it's not the masked value
-    const settings = {
-      admin_email,
-      from_email,
-      from_name,
-      email_notifications: Boolean(email_notifications)
-    };
-
+    // Only update API key if provided and not masked
     if (resend_api_key && !resend_api_key.includes('••••')) {
       settings.resend_api_key = resend_api_key;
     }
