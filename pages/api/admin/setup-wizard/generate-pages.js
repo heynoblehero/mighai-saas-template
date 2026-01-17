@@ -160,17 +160,26 @@ Use inline styles or Tailwind classes. Include the brand color CSS variables.
 Make the page fully responsive and visually polished.
 `;
 
-  // Create AI provider instance
-  const aiService = new AIProviderService(apiKey, provider, model);
+  // Create AI provider instance with settings object
+  const settings = {
+    ai_provider: provider,
+    claude_api_key: provider === 'claude' ? apiKey : null,
+    gemini_api_key: provider === 'gemini' ? apiKey : null,
+    claude_model: model || 'claude-sonnet-4-5-20250929',
+    gemini_model: model || 'gemini-2.0-flash',
+    max_tokens: 8000,
+    temperature: 0.7
+  };
+  const aiService = new AIProviderService(settings);
 
   // Generate the page
-  const response = await aiService.generateContent(fullPrompt, {
+  const response = await aiService.generate(fullPrompt, {
     maxTokens: 8000,
     temperature: 0.7
   });
 
   // Extract HTML from response
-  let htmlContent = response.text || response;
+  let htmlContent = response.content || response.text || response;
 
   // Clean up the response - extract HTML if wrapped in markdown
   if (htmlContent.includes('```html')) {
