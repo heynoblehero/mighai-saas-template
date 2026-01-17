@@ -20,6 +20,18 @@ function getResendClient() {
 // Database setup - use process.cwd() for consistency with Next.js
 const dbPath = path.join(process.cwd(), 'site_builder.db');
 
+// Shared database connection with busy timeout to prevent SQLITE_BUSY errors
+let sharedDb = null;
+function getDb() {
+  if (!sharedDb) {
+    sharedDb = new sqlite3.Database(dbPath);
+    // Set busy timeout to wait up to 5 seconds when database is locked
+    sharedDb.run('PRAGMA busy_timeout = 5000');
+    sharedDb.run('PRAGMA journal_mode = WAL');
+  }
+  return sharedDb;
+}
+
 class EmailService {
   constructor() {
     // Initialize database tables once at startup
@@ -27,7 +39,7 @@ class EmailService {
   }
 
   initDatabase() {
-    const db = new sqlite3.Database(dbPath);
+    const db = getDb();
 
     // Create email_settings table
     db.run(`
@@ -322,15 +334,14 @@ class EmailService {
   // Store OTP in database
   async storeOTP(email, purpose, otpCode, expirationMinutes = 10) {
     return new Promise((resolve, reject) => {
-      const db = new sqlite3.Database(dbPath);
+      const db = getDb();
       const expiresAt = new Date(Date.now() + expirationMinutes * 60 * 1000).toISOString();
-      
+
       db.run(
         `INSERT INTO otp_verifications (email, otp_code, purpose, expires_at)
          VALUES (?, ?, ?, ?)`,
         [email, otpCode, purpose, expiresAt],
         function(err) {
-          db.close();
           if (err) reject(err);
           else resolve(this.lastID);
         }
@@ -341,33 +352,30 @@ class EmailService {
   // Verify OTP
   async verifyOTP(email, otpCode, purpose) {
     return new Promise((resolve, reject) => {
-      const db = new sqlite3.Database(dbPath);
-      
+      const db = getDb();
+
       db.get(
-        `SELECT * FROM otp_verifications 
-         WHERE email = ? AND otp_code = ? AND purpose = ? 
+        `SELECT * FROM otp_verifications
+         WHERE email = ? AND otp_code = ? AND purpose = ?
          AND expires_at > datetime('now') AND verified = 0`,
         [email, otpCode, purpose],
         (err, row) => {
           if (err) {
-            db.close();
             reject(err);
             return;
           }
-          
+
           if (row) {
             // Mark as verified
             db.run(
               `UPDATE otp_verifications SET verified = 1 WHERE id = ?`,
               [row.id],
               (updateErr) => {
-                db.close();
                 if (updateErr) reject(updateErr);
                 else resolve(true);
               }
             );
           } else {
-            db.close();
             resolve(false);
           }
         }
@@ -378,13 +386,12 @@ class EmailService {
   // Get email template
   async getEmailTemplate(templateName) {
     return new Promise((resolve, reject) => {
-      const db = new sqlite3.Database(dbPath);
-      
+      const db = getDb();
+
       db.get(
         `SELECT * FROM email_templates WHERE name = ?`,
         [templateName],
         (err, row) => {
-          db.close();
           if (err) reject(err);
           else resolve(row);
         }
@@ -550,10 +557,9 @@ class EmailService {
   // Get email settings
   async getEmailSettings() {
     return new Promise((resolve, reject) => {
-      const db = new sqlite3.Database(dbPath);
-      
+      const db = getDb();
+
       db.get(`SELECT * FROM email_settings WHERE id = 1`, (err, row) => {
-        db.close();
         if (err) reject(err);
         else resolve(row || {
           admin_email: 'admin@mighai.com',
@@ -568,17 +574,16 @@ class EmailService {
   // Update email settings
   async updateEmailSettings(settings) {
     return new Promise((resolve, reject) => {
-      const db = new sqlite3.Database(dbPath);
-      
+      const db = getDb();
+
       db.run(
-        `UPDATE email_settings SET 
-         admin_email = ?, from_email = ?, from_name = ?, 
+        `UPDATE email_settings SET
+         admin_email = ?, from_email = ?, from_name = ?,
          resend_api_key = ?, email_notifications = ?, updated_at = CURRENT_TIMESTAMP
          WHERE id = 1`,
-        [settings.admin_email, settings.from_email, settings.from_name, 
+        [settings.admin_email, settings.from_email, settings.from_name,
          settings.resend_api_key, settings.email_notifications],
         function(err) {
-          db.close();
           if (err) reject(err);
           else resolve(this.changes > 0);
         }
@@ -589,14 +594,13 @@ class EmailService {
   // Log email
   async logEmail(recipientEmail, subject, templateId, campaignId, status, resendMessageId, errorMessage = null) {
     return new Promise((resolve, reject) => {
-      const db = new sqlite3.Database(dbPath);
-      
+      const db = getDb();
+
       db.run(
         `INSERT INTO email_logs (recipient_email, subject, template_id, campaign_id, status, resend_message_id, error_message)
          VALUES (?, ?, ?, ?, ?, ?, ?)`,
         [recipientEmail, subject, templateId, campaignId, status, resendMessageId, errorMessage],
         function(err) {
-          db.close();
           if (err) reject(err);
           else resolve(this.lastID);
         }
@@ -630,13 +634,12 @@ class EmailService {
   // Get email template by ID
   async getEmailTemplateById(templateId) {
     return new Promise((resolve, reject) => {
-      const db = new sqlite3.Database(dbPath);
-      
+      const db = getDb();
+
       db.get(
         `SELECT * FROM email_templates WHERE id = ?`,
         [templateId],
         (err, row) => {
-          db.close();
           if (err) reject(err);
           else resolve(row);
         }
