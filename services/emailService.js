@@ -140,9 +140,6 @@ class EmailService {
 
     // Insert default email templates
     this.insertDefaultTemplates(db);
-
-    // Close the database connection after initialization
-    db.close();
   }
 
   insertDefaultTemplates(db) {
