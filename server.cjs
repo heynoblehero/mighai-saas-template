@@ -937,6 +937,89 @@ db.serialize(() => {
       console.error('Error adding allow_api_key_access column:', err);
     }
   });
+
+  // Email Settings Table
+  db.run(`CREATE TABLE IF NOT EXISTS email_settings (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    admin_email TEXT NOT NULL,
+    from_email TEXT NOT NULL DEFAULT 'noreply@mighai.com',
+    from_name TEXT NOT NULL DEFAULT 'Mighai',
+    resend_api_key TEXT,
+    smtp_host TEXT,
+    smtp_port INTEGER,
+    smtp_username TEXT,
+    smtp_password TEXT,
+    email_notifications BOOLEAN DEFAULT 1,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  )`);
+
+  // Email Campaigns Table
+  db.run(`CREATE TABLE IF NOT EXISTS email_campaigns (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    description TEXT,
+    type TEXT NOT NULL,
+    trigger_condition TEXT,
+    email_template_id INTEGER,
+    is_active BOOLEAN DEFAULT 1,
+    send_delay_hours INTEGER DEFAULT 0,
+    target_plan TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  )`);
+
+  // Email Templates Table
+  db.run(`CREATE TABLE IF NOT EXISTS email_templates (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    subject TEXT NOT NULL,
+    html_content TEXT NOT NULL,
+    text_content TEXT,
+    template_type TEXT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  )`);
+
+  // Email Logs Table
+  db.run(`CREATE TABLE IF NOT EXISTS email_logs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    recipient_email TEXT NOT NULL,
+    subject TEXT NOT NULL,
+    template_id INTEGER,
+    campaign_id INTEGER,
+    status TEXT DEFAULT 'sent',
+    resend_message_id TEXT,
+    error_message TEXT,
+    sent_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  )`);
+
+  // OTP Verifications Table
+  db.run(`CREATE TABLE IF NOT EXISTS otp_verifications (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    email TEXT NOT NULL,
+    otp_code TEXT NOT NULL,
+    purpose TEXT NOT NULL,
+    expires_at DATETIME NOT NULL,
+    verified BOOLEAN DEFAULT 0,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  )`);
+
+  // Email Sequences Table
+  db.run(`CREATE TABLE IF NOT EXISTS email_sequences (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    campaign_id INTEGER NOT NULL,
+    sequence_order INTEGER NOT NULL,
+    email_template_id INTEGER NOT NULL,
+    delay_hours INTEGER NOT NULL,
+    is_active BOOLEAN DEFAULT 1,
+    FOREIGN KEY (campaign_id) REFERENCES email_campaigns (id),
+    FOREIGN KEY (email_template_id) REFERENCES email_templates (id)
+  )`);
+
+  // Insert default email settings if not exists
+  db.run(`INSERT OR IGNORE INTO email_settings (id, admin_email, from_email, from_name)
+    VALUES (1, 'admin@mighai.com', 'noreply@mighai.com', 'Mighai')`);
 });
 
 // Passport configuration
