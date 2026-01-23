@@ -1022,6 +1022,46 @@ db.serialize(() => {
     VALUES (1, 'admin@mighai.com', 'noreply@mighai.com', 'Mighai')`);
 });
 
+// Helper to get LemonSqueezy credentials (from env or DB)
+function getLemonSqueezyCredentials() {
+  return new Promise((resolve, reject) => {
+    // Check env vars first
+    const envApiKey = process.env.LEMONSQUEEZY_API_KEY;
+    const envStoreId = process.env.LEMONSQUEEZY_STORE_ID;
+
+    if (envApiKey && envStoreId) {
+      return resolve({ apiKey: envApiKey, storeId: envStoreId, source: 'env' });
+    }
+
+    // Fall back to database (setup_wizard_state)
+    db.get(
+      'SELECT lemonsqueezy_api_key, lemonsqueezy_store_id FROM setup_wizard_state WHERE user_id = 1',
+      (err, row) => {
+        if (err) {
+          console.error('Error fetching LemonSqueezy credentials from DB:', err);
+          return reject(err);
+        }
+
+        if (row && row.lemonsqueezy_api_key && row.lemonsqueezy_store_id) {
+          // Re-initialize SDK with DB credentials
+          lemonSqueezySetup({
+            apiKey: row.lemonsqueezy_api_key,
+            onError: (error) => console.error('Lemon Squeezy Error:', error),
+          });
+          return resolve({
+            apiKey: row.lemonsqueezy_api_key,
+            storeId: row.lemonsqueezy_store_id,
+            source: 'db'
+          });
+        }
+
+        // No credentials found
+        resolve({ apiKey: null, storeId: null, source: null });
+      }
+    );
+  });
+}
+
 // Passport configuration
 passport.use(new LocalStrategy({
   usernameField: 'email'
@@ -1831,13 +1871,19 @@ nextApp.prepare()
   // Generate checkout link for embedding (public endpoint)
   server.get('/api/checkout-link/:planId', async (req, res) => {
     const { planId } = req.params;
-    
+
     try {
+      // Get LemonSqueezy credentials
+      const credentials = await getLemonSqueezyCredentials();
+      if (!credentials.apiKey || !credentials.storeId) {
+        return res.status(500).json({ error: 'LemonSqueezy not configured. Please set up payment in the wizard.' });
+      }
+
       // Get plan details
       db.get('SELECT * FROM plans WHERE id = ? AND is_active = 1', [planId], async (err, plan) => {
         if (err) return res.status(500).json({ error: err.message });
         if (!plan) return res.status(404).json({ error: 'Plan not found' });
-        
+
         if (!plan.lemonsqueezy_variant_id) {
           return res.status(400).json({ error: 'Plan is not available for purchase' });
         }
@@ -1859,7 +1905,7 @@ nextApp.prepare()
                 store: {
                   data: {
                     type: 'stores',
-                    id: process.env.LEMONSQUEEZY_STORE_ID
+                    id: credentials.storeId
                   }
                 },
                 variant: {
@@ -1873,7 +1919,7 @@ nextApp.prepare()
           };
 
           const checkout = await createCheckout(
-            process.env.LEMONSQUEEZY_STORE_ID,
+            credentials.storeId,
             plan.lemonsqueezy_variant_id,
             {
               checkoutData: checkoutData.data.attributes.checkout_data
@@ -1895,17 +1941,23 @@ nextApp.prepare()
   // Lemon Squeezy checkout session creation
   server.post('/api/create-checkout-session', requireSubscriberAuth, async (req, res) => {
     const { plan_id } = req.body;
-    
+
     if (!plan_id) {
       return res.status(400).json({ error: 'Plan ID is required' });
     }
 
     try {
+      // Get LemonSqueezy credentials
+      const credentials = await getLemonSqueezyCredentials();
+      if (!credentials.apiKey || !credentials.storeId) {
+        return res.status(500).json({ error: 'LemonSqueezy not configured. Please set up payment in the wizard.' });
+      }
+
       // Get plan details
       db.get('SELECT * FROM plans WHERE id = ? AND is_active = 1', [plan_id], async (err, plan) => {
         if (err) return res.status(500).json({ error: err.message });
         if (!plan) return res.status(404).json({ error: 'Plan not found' });
-        
+
         if (!plan.lemonsqueezy_variant_id) {
           return res.status(400).json({ error: 'Plan is not available for purchase' });
         }
@@ -1913,7 +1965,7 @@ nextApp.prepare()
         try {
           // Create Lemon Squeezy checkout session
           const checkout = await createCheckout(
-            process.env.LEMONSQUEEZY_STORE_ID,
+            credentials.storeId,
             plan.lemonsqueezy_variant_id,
             {
               checkoutData: {
@@ -2034,18 +2086,23 @@ nextApp.prepare()
           } else {
             // Create new subscriber account
             const bcrypt = require('bcryptjs');
-            const tempPassword = Math.random().toString(36).slice(-8);
+            const tempPassword = Math.random().toString(36).slice(-8) + 'A1!'; // Ensure password meets complexity
             const hashedPassword = bcrypt.hashSync(tempPassword, 10);
             const username = customerEmail.split('@')[0];
-            
-            db.run(`INSERT INTO users (username, email, password, role, plan_id, lemonsqueezy_order_id, lemonsqueezy_customer_id, subscription_status) 
-                    VALUES (?, ?, ?, 'subscriber', ?, ?, ?, 'active')`,
-              [username, customerEmail, hashedPassword, planId, orderData.id, orderData.attributes.customer_id], function(err) {
+            const customerName = orderData.attributes.user_name || username;
+
+            db.run(`INSERT INTO users (username, email, password, name, role, plan_id, lemonsqueezy_order_id, lemonsqueezy_customer_id, subscription_status)
+                    VALUES (?, ?, ?, ?, 'subscriber', ?, ?, ?, 'active')`,
+              [username, customerEmail, hashedPassword, customerName, planId, orderData.id, orderData.attributes.customer_id], function(err) {
                 if (err) {
                   console.error('Error creating new subscriber:', err);
                 } else {
                   console.log(`New subscriber ${this.lastID} created with plan ${planId}`);
-                  // TODO: Send welcome email with login instructions
+
+                  // Send welcome email with login credentials
+                  sendWelcomeEmailWithCredentials(customerEmail, customerName, tempPassword)
+                    .then(() => console.log(`Welcome email sent to ${customerEmail}`))
+                    .catch(emailErr => console.error('Error sending welcome email:', emailErr));
                 }
               });
           }
@@ -2072,11 +2129,11 @@ nextApp.prepare()
   }
 
   function handleSubscriptionCancellation(subscriptionData) {
-    db.run(`UPDATE users SET 
+    db.run(`UPDATE users SET
             plan_id = 1,
             lemonsqueezy_subscription_id = NULL,
             subscription_status = 'inactive'
-            WHERE lemonsqueezy_subscription_id = ?`, 
+            WHERE lemonsqueezy_subscription_id = ?`,
       [subscriptionData.id], (err) => {
         if (err) {
           console.error('Error cancelling subscription:', err);
@@ -2084,6 +2141,77 @@ nextApp.prepare()
           console.log(`Subscription cancelled: ${subscriptionData.id}`);
         }
       });
+  }
+
+  // Send welcome email to new users created from payment
+  async function sendWelcomeEmailWithCredentials(email, name, tempPassword) {
+    try {
+      // Get email template
+      const template = await new Promise((resolve, reject) => {
+        db.get(
+          "SELECT * FROM email_templates WHERE name = 'Welcome - Account Created from Purchase'",
+          (err, row) => {
+            if (err) reject(err);
+            else resolve(row);
+          }
+        );
+      });
+
+      if (!template) {
+        console.error('Welcome email template not found');
+        return;
+      }
+
+      // Get email settings
+      const settings = await new Promise((resolve, reject) => {
+        db.get('SELECT * FROM email_settings WHERE id = 1', (err, row) => {
+          if (err) reject(err);
+          else resolve(row || { from_name: 'Mighai', from_email: 'noreply@mighai.com' });
+        });
+      });
+
+      // Replace template variables
+      const siteName = settings.from_name || 'Mighai';
+      const loginUrl = process.env.BASE_URL ? `${process.env.BASE_URL}/login` : 'http://localhost:3000/login';
+
+      let htmlContent = template.html_content
+        .replace(/\{\{USER_NAME\}\}/g, name || 'there')
+        .replace(/\{\{EMAIL\}\}/g, email)
+        .replace(/\{\{TEMP_PASSWORD\}\}/g, tempPassword)
+        .replace(/\{\{LOGIN_URL\}\}/g, loginUrl)
+        .replace(/\{\{SITE_NAME\}\}/g, siteName);
+
+      let textContent = template.text_content
+        .replace(/\{\{USER_NAME\}\}/g, name || 'there')
+        .replace(/\{\{EMAIL\}\}/g, email)
+        .replace(/\{\{TEMP_PASSWORD\}\}/g, tempPassword)
+        .replace(/\{\{LOGIN_URL\}\}/g, loginUrl)
+        .replace(/\{\{SITE_NAME\}\}/g, siteName);
+
+      let subject = template.subject.replace(/\{\{SITE_NAME\}\}/g, siteName);
+
+      // Send via Resend if configured
+      const resendApiKey = settings.resend_api_key || process.env.RESEND_API_KEY;
+      if (resendApiKey && resendApiKey !== 'undefined') {
+        const { Resend } = require('resend');
+        const resend = new Resend(resendApiKey);
+
+        await resend.emails.send({
+          from: `${settings.from_name} <${settings.from_email}>`,
+          to: email,
+          subject: subject,
+          html: htmlContent,
+          text: textContent
+        });
+
+        console.log(`Welcome email sent to ${email}`);
+      } else {
+        console.log(`Welcome email not sent - no Resend API key configured. Credentials for ${email}: ${tempPassword}`);
+      }
+    } catch (error) {
+      console.error('Failed to send welcome email:', error);
+      throw error;
+    }
   }
 
   // Analytics API routes

@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/router';
 import AdminLayout from '../../components/AdminLayout';
+import { useToast } from '../../contexts/ToastContext';
+import ConfirmDialog from '../../components/ui/ConfirmDialog';
 import {
   BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer, PieChart, Pie, Cell, AreaChart, Area,
@@ -48,7 +50,7 @@ export default function Analytics() {
   useEffect(() => {
     const handleHashChange = () => {
       const hash = window.location.hash.substring(1); // Remove the '#' character
-      if (hash === 'heatmaps' || hash === 'ab-tests') {
+      if (hash === 'heatmaps' || hash === 'ab-tests' || hash === 'recordings') {
         setActiveTab(hash);
       } else {
         setActiveTab('analytics'); // Default to analytics tab
@@ -99,6 +101,38 @@ export default function Analytics() {
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [selectedExperimentResults, setSelectedExperimentResults] = useState(null);
   const [resultsLoading, setResultsLoading] = useState(false);
+  const [confirmDialog, setConfirmDialog] = useState({ isOpen: false, type: null, data: null });
+  const toast = useToast();
+
+  // Session Recording state
+  const [recordingSettings, setRecordingSettings] = useState({
+    is_enabled: false,
+    retention_days: 7,
+    mask_passwords: true,
+    mask_credit_cards: true,
+    mask_emails: false,
+    sampling_rate: 100
+  });
+  const [recordings, setRecordings] = useState([]);
+  const [recordingsLoading, setRecordingsLoading] = useState(false);
+  const [recordingsPagination, setRecordingsPagination] = useState({ page: 1, total: 0, total_pages: 0 });
+  const [recordingFilters, setRecordingFilters] = useState({
+    page_path: '',
+    start_date: '',
+    end_date: ''
+  });
+  const [availablePages, setAvailablePages] = useState([]);
+  const [selectedRecording, setSelectedRecording] = useState(null);
+  const [replayState, setReplayState] = useState({
+    isPlaying: false,
+    currentTime: 0,
+    speed: 1,
+    duration: 0
+  });
+  const [settingsExpanded, setSettingsExpanded] = useState(false);
+  const [savingSettings, setSavingSettings] = useState(false);
+  const replayContainerRef = useRef(null);
+  const replayIntervalRef = useRef(null);
 
   // Fetch analytics data from API
   const fetchAnalyticsData = async () => {
@@ -174,8 +208,20 @@ export default function Analytics() {
       loadHeatmapData();
     } else if (activeTab === 'ab-tests') {
       fetchExperiments();
+    } else if (activeTab === 'recordings') {
+      fetchRecordingSettings();
+      fetchRecordings();
     }
   }, [activeTab, timeframe]);
+
+  // Cleanup replay interval on unmount
+  useEffect(() => {
+    return () => {
+      if (replayIntervalRef.current) {
+        clearInterval(replayIntervalRef.current);
+      }
+    };
+  }, []);
 
   // Draw heatmap when data changes
   useEffect(() => {
@@ -332,11 +378,11 @@ export default function Analytics() {
         const data = await response.json();
         setSelectedExperimentResults(data);
       } else {
-        alert('Failed to fetch experiment results');
+        toast.error('Failed to fetch experiment results');
       }
     } catch (error) {
       console.error('Failed to fetch results:', error);
-      alert('Error fetching results: ' + error.message);
+      toast.error('Error fetching results: ' + error.message);
     } finally {
       setResultsLoading(false);
     }
@@ -359,18 +405,25 @@ export default function Analytics() {
         setEditingExperiment(null);
         resetAbTestForm();
         fetchExperiments();
+        toast.success(editingExperiment ? 'Experiment updated successfully' : 'Experiment created successfully');
       } else {
-        alert('Failed to save experiment. Please try again.');
+        toast.error('Failed to save experiment. Please try again.');
       }
     } catch (error) {
       console.error('Failed to save experiment:', error);
-      alert('Error saving experiment: ' + error.message);
+      toast.error('Error saving experiment: ' + error.message);
     }
   };
 
-  const handleAbTestDelete = async (id) => {
-    if (!confirm('Are you sure you want to delete this experiment?')) return;
+  const confirmDeleteExperiment = (id) => {
+    setConfirmDialog({
+      isOpen: true,
+      type: 'deleteExperiment',
+      data: id
+    });
+  };
 
+  const handleAbTestDelete = async (id) => {
     try {
       const response = await fetch(`/api/ab-test/${id}`, {
         method: 'DELETE'
@@ -378,9 +431,13 @@ export default function Analytics() {
 
       if (response.ok) {
         fetchExperiments();
+        toast.success('Experiment deleted successfully');
+      } else {
+        toast.error('Failed to delete experiment');
       }
     } catch (error) {
       console.error('Failed to delete experiment:', error);
+      toast.error('Failed to delete experiment');
     }
   };
 
@@ -441,6 +498,163 @@ export default function Analytics() {
     newVariants.forEach(v => v.traffic_split = splitPercentage);
 
     setAbTestFormData({ ...abTestFormData, variants: newVariants });
+  };
+
+  // Session Recording functions
+  const fetchRecordingSettings = async () => {
+    try {
+      const response = await fetch('/api/admin/session-recording/settings');
+      if (response.ok) {
+        const data = await response.json();
+        setRecordingSettings(data);
+      }
+    } catch (error) {
+      console.error('Failed to fetch recording settings:', error);
+    }
+  };
+
+  const saveRecordingSettings = async (newSettings) => {
+    setSavingSettings(true);
+    try {
+      const response = await fetch('/api/admin/session-recording/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newSettings)
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setRecordingSettings(data.settings);
+      }
+    } catch (error) {
+      console.error('Failed to save recording settings:', error);
+    } finally {
+      setSavingSettings(false);
+    }
+  };
+
+  const fetchRecordings = async (page = 1) => {
+    setRecordingsLoading(true);
+    try {
+      const params = new URLSearchParams({ page, limit: 20 });
+      if (recordingFilters.page_path) params.append('page_path', recordingFilters.page_path);
+      if (recordingFilters.start_date) params.append('start_date', recordingFilters.start_date);
+      if (recordingFilters.end_date) params.append('end_date', recordingFilters.end_date);
+
+      const response = await fetch(`/api/admin/session-recording/list?${params}`);
+      if (response.ok) {
+        const data = await response.json();
+        setRecordings(data.recordings || []);
+        setRecordingsPagination(data.pagination || { page: 1, total: 0, total_pages: 0 });
+        setAvailablePages(data.filters?.pages || []);
+      }
+    } catch (error) {
+      console.error('Failed to fetch recordings:', error);
+    } finally {
+      setRecordingsLoading(false);
+    }
+  };
+
+  const openRecording = async (recordingId) => {
+    try {
+      const response = await fetch(`/api/admin/session-recording/${recordingId}`);
+      if (response.ok) {
+        const data = await response.json();
+        setSelectedRecording(data);
+        setReplayState({
+          isPlaying: false,
+          currentTime: 0,
+          speed: 1,
+          duration: data.duration_ms || 0
+        });
+      }
+    } catch (error) {
+      console.error('Failed to open recording:', error);
+    }
+  };
+
+  const confirmDeleteRecording = (recordingId) => {
+    setConfirmDialog({
+      isOpen: true,
+      type: 'deleteRecording',
+      data: recordingId
+    });
+  };
+
+  const deleteRecording = async (recordingId) => {
+    try {
+      const response = await fetch(`/api/admin/session-recording/${recordingId}`, {
+        method: 'DELETE'
+      });
+      if (response.ok) {
+        fetchRecordings(recordingsPagination.page);
+        if (selectedRecording?.recording_id === recordingId) {
+          setSelectedRecording(null);
+        }
+        toast.success('Recording deleted successfully');
+      } else {
+        toast.error('Failed to delete recording');
+      }
+    } catch (error) {
+      console.error('Failed to delete recording:', error);
+      toast.error('Failed to delete recording');
+    }
+  };
+
+  const cleanupRecordings = async () => {
+    try {
+      const response = await fetch('/api/admin/session-recording/cleanup', {
+        method: 'POST'
+      });
+      if (response.ok) {
+        const data = await response.json();
+        toast.success(`Cleaned up ${data.deleted} expired recordings`);
+        fetchRecordings();
+      } else {
+        toast.error('Failed to cleanup recordings');
+      }
+    } catch (error) {
+      console.error('Failed to cleanup recordings:', error);
+      toast.error('Failed to cleanup recordings');
+    }
+  };
+
+  const toggleReplay = () => {
+    if (replayState.isPlaying) {
+      // Pause
+      if (replayIntervalRef.current) {
+        clearInterval(replayIntervalRef.current);
+        replayIntervalRef.current = null;
+      }
+      setReplayState(prev => ({ ...prev, isPlaying: false }));
+    } else {
+      // Play
+      setReplayState(prev => ({ ...prev, isPlaying: true }));
+      replayIntervalRef.current = setInterval(() => {
+        setReplayState(prev => {
+          const newTime = prev.currentTime + (100 * prev.speed);
+          if (newTime >= prev.duration) {
+            clearInterval(replayIntervalRef.current);
+            return { ...prev, isPlaying: false, currentTime: prev.duration };
+          }
+          return { ...prev, currentTime: newTime };
+        });
+      }, 100);
+    }
+  };
+
+  const seekReplay = (time) => {
+    setReplayState(prev => ({ ...prev, currentTime: time }));
+  };
+
+  const setReplaySpeed = (speed) => {
+    setReplayState(prev => ({ ...prev, speed }));
+  };
+
+  const formatDuration = (ms) => {
+    const seconds = Math.floor(ms / 1000);
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = seconds % 60;
+    return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
   };
 
   if (loading && activeTab === 'analytics') {
@@ -509,6 +723,19 @@ export default function Analytics() {
             >
               🧪 A/B Tests
             </button>
+            <button
+              onClick={() => {
+                setActiveTab('recordings');
+                window.location.hash = 'recordings';
+              }}
+              className={`py-3 px-1 border-b-2 font-medium text-sm transition-colors ${
+                activeTab === 'recordings'
+                  ? 'border-emerald-500 text-emerald-400'
+                  : 'border-transparent text-slate-400 hover:text-slate-300 hover:border-slate-600'
+              }`}
+            >
+              🎬 Session Recordings
+            </button>
           </nav>
         </div>
 
@@ -516,6 +743,7 @@ export default function Analytics() {
         {activeTab === 'analytics' && renderAnalyticsTab()}
         {activeTab === 'heatmaps' && renderHeatmapsTab()}
         {activeTab === 'ab-tests' && renderAbTestsTab()}
+        {activeTab === 'recordings' && renderSessionRecordingsTab()}
       </div>
     </AdminLayout>
   );
@@ -1366,7 +1594,7 @@ export default function Analytics() {
                           Edit
                         </button>
                         <button
-                          onClick={() => handleAbTestDelete(experiment.id)}
+                          onClick={() => confirmDeleteExperiment(experiment.id)}
                           className="text-red-600 hover:text-red-900"
                         >
                           Delete
@@ -1587,6 +1815,487 @@ ABTest.getVariant(1).then(variant => {
             </div>
           </div>
         </div>
+      </div>
+    );
+  }
+
+  function renderSessionRecordingsTab() {
+    return (
+      <div className="space-y-6">
+        {/* Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 className="text-2xl font-bold text-slate-100">Session Recordings</h2>
+            <p className="text-slate-400 mt-1">Watch real user sessions to understand behavior and identify issues</p>
+          </div>
+          <div className="flex gap-2 mt-4 sm:mt-0">
+            <button
+              onClick={cleanupRecordings}
+              className="bg-slate-700 hover:bg-slate-600 text-slate-200 px-4 py-2 rounded-lg text-sm transition-colors"
+            >
+              Cleanup Expired
+            </button>
+          </div>
+        </div>
+
+        {/* Settings Panel (Collapsible) */}
+        <div className="bg-slate-800 border border-slate-700 rounded-xl overflow-hidden">
+          <button
+            onClick={() => setSettingsExpanded(!settingsExpanded)}
+            className="w-full px-6 py-4 flex items-center justify-between text-left hover:bg-slate-700/50 transition-colors"
+          >
+            <div className="flex items-center gap-3">
+              <span className="text-lg">⚙️</span>
+              <div>
+                <h3 className="text-lg font-semibold text-slate-200">Recording Settings</h3>
+                <p className="text-sm text-slate-400">
+                  {recordingSettings.is_enabled ? 'Recording is enabled' : 'Recording is disabled'}
+                  {recordingSettings.is_enabled && ` • ${recordingSettings.retention_days} day retention`}
+                </p>
+              </div>
+            </div>
+            <span className={`text-slate-400 transition-transform ${settingsExpanded ? 'rotate-180' : ''}`}>
+              ▼
+            </span>
+          </button>
+
+          {settingsExpanded && (
+            <div className="px-6 pb-6 border-t border-slate-700">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-4">
+                {/* Enable Toggle */}
+                <div className="flex items-center justify-between bg-slate-700/50 p-4 rounded-lg">
+                  <div>
+                    <p className="text-slate-200 font-medium">Enable Recording</p>
+                    <p className="text-sm text-slate-400">Record user sessions</p>
+                  </div>
+                  <button
+                    onClick={() => saveRecordingSettings({ ...recordingSettings, is_enabled: !recordingSettings.is_enabled })}
+                    disabled={savingSettings}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                      recordingSettings.is_enabled ? 'bg-emerald-600' : 'bg-slate-600'
+                    }`}
+                  >
+                    <span
+                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                        recordingSettings.is_enabled ? 'translate-x-6' : 'translate-x-1'
+                      }`}
+                    />
+                  </button>
+                </div>
+
+                {/* Retention Days */}
+                <div className="bg-slate-700/50 p-4 rounded-lg">
+                  <p className="text-slate-200 font-medium mb-2">Retention Period</p>
+                  <select
+                    value={recordingSettings.retention_days}
+                    onChange={(e) => saveRecordingSettings({ ...recordingSettings, retention_days: parseInt(e.target.value) })}
+                    className="w-full bg-slate-600 border border-slate-500 rounded px-3 py-2 text-slate-200"
+                  >
+                    <option value={3}>3 days</option>
+                    <option value={7}>7 days</option>
+                    <option value={14}>14 days</option>
+                    <option value={30}>30 days</option>
+                  </select>
+                </div>
+
+                {/* Sampling Rate */}
+                <div className="bg-slate-700/50 p-4 rounded-lg">
+                  <p className="text-slate-200 font-medium mb-2">Sampling Rate: {recordingSettings.sampling_rate}%</p>
+                  <input
+                    type="range"
+                    min="10"
+                    max="100"
+                    step="10"
+                    value={recordingSettings.sampling_rate}
+                    onChange={(e) => saveRecordingSettings({ ...recordingSettings, sampling_rate: parseInt(e.target.value) })}
+                    className="w-full"
+                  />
+                  <p className="text-xs text-slate-400 mt-1">Percentage of sessions to record</p>
+                </div>
+
+                {/* Privacy Masking */}
+                <div className="md:col-span-2 lg:col-span-3 bg-slate-700/50 p-4 rounded-lg">
+                  <p className="text-slate-200 font-medium mb-3">Privacy Masking</p>
+                  <div className="flex flex-wrap gap-4">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={recordingSettings.mask_passwords}
+                        onChange={(e) => saveRecordingSettings({ ...recordingSettings, mask_passwords: e.target.checked })}
+                        className="rounded border-slate-500 bg-slate-600 text-emerald-500"
+                      />
+                      <span className="text-slate-300">Mask Passwords</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={recordingSettings.mask_credit_cards}
+                        onChange={(e) => saveRecordingSettings({ ...recordingSettings, mask_credit_cards: e.target.checked })}
+                        className="rounded border-slate-500 bg-slate-600 text-emerald-500"
+                      />
+                      <span className="text-slate-300">Mask Credit Cards</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={recordingSettings.mask_emails}
+                        onChange={(e) => saveRecordingSettings({ ...recordingSettings, mask_emails: e.target.checked })}
+                        className="rounded border-slate-500 bg-slate-600 text-emerald-500"
+                      />
+                      <span className="text-slate-300">Mask Emails</span>
+                    </label>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Filters */}
+        <div className="bg-slate-800 border border-slate-700 rounded-xl p-4">
+          <div className="flex flex-wrap gap-4 items-end">
+            <div>
+              <label className="block text-sm text-slate-400 mb-1">Page</label>
+              <select
+                value={recordingFilters.page_path}
+                onChange={(e) => setRecordingFilters(prev => ({ ...prev, page_path: e.target.value }))}
+                className="bg-slate-700 border border-slate-600 rounded px-3 py-2 text-slate-200 min-w-[200px]"
+              >
+                <option value="">All Pages</option>
+                {availablePages.map((page, idx) => (
+                  <option key={idx} value={page.path}>{page.path} ({page.count})</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm text-slate-400 mb-1">Start Date</label>
+              <input
+                type="date"
+                value={recordingFilters.start_date}
+                onChange={(e) => setRecordingFilters(prev => ({ ...prev, start_date: e.target.value }))}
+                className="bg-slate-700 border border-slate-600 rounded px-3 py-2 text-slate-200"
+              />
+            </div>
+            <div>
+              <label className="block text-sm text-slate-400 mb-1">End Date</label>
+              <input
+                type="date"
+                value={recordingFilters.end_date}
+                onChange={(e) => setRecordingFilters(prev => ({ ...prev, end_date: e.target.value }))}
+                className="bg-slate-700 border border-slate-600 rounded px-3 py-2 text-slate-200"
+              />
+            </div>
+            <button
+              onClick={() => fetchRecordings(1)}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded transition-colors"
+            >
+              Apply Filters
+            </button>
+          </div>
+        </div>
+
+        {/* Recordings List */}
+        <div className="bg-slate-800 border border-slate-700 rounded-xl overflow-hidden">
+          <div className="px-6 py-4 border-b border-slate-700 flex items-center justify-between">
+            <h3 className="text-lg font-semibold text-slate-200">
+              Recordings ({recordingsPagination.total})
+            </h3>
+          </div>
+
+          {recordingsLoading ? (
+            <div className="p-8 text-center">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-500 mx-auto mb-4"></div>
+              <p className="text-slate-400">Loading recordings...</p>
+            </div>
+          ) : recordings.length === 0 ? (
+            <div className="p-8 text-center">
+              <div className="text-4xl mb-3">🎬</div>
+              <p className="text-slate-400">No recordings found</p>
+              <p className="text-sm text-slate-500 mt-1">
+                {recordingSettings.is_enabled
+                  ? 'Recordings will appear here once users visit your site'
+                  : 'Enable recording in settings to start capturing sessions'}
+              </p>
+            </div>
+          ) : (
+            <>
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-slate-700">
+                  <thead className="bg-slate-900/50">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-semibold text-slate-300 uppercase tracking-wider">
+                        Session
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-semibold text-slate-300 uppercase tracking-wider">
+                        Page
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-semibold text-slate-300 uppercase tracking-wider">
+                        Duration
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-semibold text-slate-300 uppercase tracking-wider">
+                        Viewport
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-semibold text-slate-300 uppercase tracking-wider">
+                        Date
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-semibold text-slate-300 uppercase tracking-wider">
+                        Actions
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-700">
+                    {recordings.map((recording) => (
+                      <tr key={recording.recording_id} className="hover:bg-slate-700/30">
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm text-slate-200 font-mono">
+                            {recording.session_id?.slice(0, 8)}...
+                          </div>
+                          <div className="text-xs text-slate-500">
+                            {recording.visitor_id?.slice(0, 8)}...
+                          </div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="text-sm text-slate-200 max-w-xs truncate" title={recording.page_path}>
+                            {recording.page_path}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <span className="text-sm text-slate-200">{formatDuration(recording.duration_ms)}</span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <span className="text-sm text-slate-400">
+                            {recording.viewport_width}x{recording.viewport_height}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <span className="text-sm text-slate-400">
+                            {new Date(recording.created_at).toLocaleDateString()}{' '}
+                            {new Date(recording.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <button
+                            onClick={() => openRecording(recording.recording_id)}
+                            className="text-emerald-400 hover:text-emerald-300 text-sm font-medium mr-3"
+                          >
+                            Watch
+                          </button>
+                          <button
+                            onClick={() => confirmDeleteRecording(recording.recording_id)}
+                            className="text-red-400 hover:text-red-300 text-sm"
+                          >
+                            Delete
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Pagination */}
+              {recordingsPagination.total_pages > 1 && (
+                <div className="px-6 py-4 border-t border-slate-700 flex items-center justify-between">
+                  <p className="text-sm text-slate-400">
+                    Page {recordingsPagination.page} of {recordingsPagination.total_pages}
+                  </p>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => fetchRecordings(recordingsPagination.page - 1)}
+                      disabled={recordingsPagination.page <= 1}
+                      className="px-3 py-1 rounded bg-slate-700 text-slate-300 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-slate-600"
+                    >
+                      Previous
+                    </button>
+                    <button
+                      onClick={() => fetchRecordings(recordingsPagination.page + 1)}
+                      disabled={recordingsPagination.page >= recordingsPagination.total_pages}
+                      className="px-3 py-1 rounded bg-slate-700 text-slate-300 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-slate-600"
+                    >
+                      Next
+                    </button>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+
+        {/* Replay Modal */}
+        {selectedRecording && (
+          <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+            <div className="bg-slate-800 rounded-xl w-full max-w-5xl max-h-[90vh] overflow-hidden flex flex-col">
+              {/* Modal Header */}
+              <div className="px-6 py-4 border-b border-slate-700 flex items-center justify-between">
+                <div>
+                  <h3 className="text-lg font-semibold text-slate-200">Session Replay</h3>
+                  <p className="text-sm text-slate-400">
+                    {selectedRecording.page_path} • {formatDuration(selectedRecording.duration_ms)}
+                  </p>
+                </div>
+                <button
+                  onClick={() => {
+                    setSelectedRecording(null);
+                    if (replayIntervalRef.current) {
+                      clearInterval(replayIntervalRef.current);
+                    }
+                  }}
+                  className="text-slate-400 hover:text-slate-200 text-2xl"
+                >
+                  ×
+                </button>
+              </div>
+
+              {/* Replay Area */}
+              <div className="flex-1 overflow-hidden bg-slate-900 relative" style={{ minHeight: '400px' }}>
+                <div
+                  ref={replayContainerRef}
+                  className="absolute inset-0 flex items-center justify-center"
+                  style={{
+                    transform: `scale(${Math.min(1, 800 / (selectedRecording.viewport_width || 1920))})`,
+                    transformOrigin: 'center center'
+                  }}
+                >
+                  {/* DOM Replay Container */}
+                  <div
+                    className="bg-white relative overflow-hidden"
+                    style={{
+                      width: selectedRecording.viewport_width || 1920,
+                      height: selectedRecording.viewport_height || 1080
+                    }}
+                  >
+                    {selectedRecording.initial_snapshot ? (
+                      <iframe
+                        srcDoc={selectedRecording.initial_snapshot}
+                        className="w-full h-full border-0 pointer-events-none"
+                        title="Session Replay"
+                        sandbox="allow-same-origin"
+                      />
+                    ) : (
+                      <div className="flex items-center justify-center h-full text-slate-500">
+                        No snapshot available
+                      </div>
+                    )}
+
+                    {/* Mouse Cursor Overlay */}
+                    {selectedRecording.events && (() => {
+                      const currentEvent = selectedRecording.events.find(e =>
+                        (e.type === 'mousemove' || e.type === 'click') && e.timestamp <= replayState.currentTime
+                      );
+                      if (currentEvent) {
+                        return (
+                          <div
+                            className="absolute pointer-events-none z-50"
+                            style={{
+                              left: currentEvent.x,
+                              top: currentEvent.y,
+                              transform: 'translate(-50%, -50%)'
+                            }}
+                          >
+                            <div className={`w-4 h-4 rounded-full ${currentEvent.type === 'click' ? 'bg-red-500 animate-ping' : 'bg-blue-500'}`} />
+                          </div>
+                        );
+                      }
+                      return null;
+                    })()}
+                  </div>
+                </div>
+              </div>
+
+              {/* Playback Controls */}
+              <div className="px-6 py-4 border-t border-slate-700 space-y-3">
+                {/* Timeline */}
+                <div className="flex items-center gap-4">
+                  <span className="text-sm text-slate-400 w-16">{formatDuration(replayState.currentTime)}</span>
+                  <input
+                    type="range"
+                    min="0"
+                    max={replayState.duration}
+                    value={replayState.currentTime}
+                    onChange={(e) => seekReplay(parseInt(e.target.value))}
+                    className="flex-1"
+                  />
+                  <span className="text-sm text-slate-400 w-16 text-right">{formatDuration(replayState.duration)}</span>
+                </div>
+
+                {/* Controls */}
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <button
+                      onClick={toggleReplay}
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-2 rounded-lg font-medium transition-colors"
+                    >
+                      {replayState.isPlaying ? '⏸ Pause' : '▶ Play'}
+                    </button>
+                    <button
+                      onClick={() => seekReplay(0)}
+                      className="bg-slate-700 hover:bg-slate-600 text-slate-200 px-4 py-2 rounded-lg transition-colors"
+                    >
+                      ⏮ Restart
+                    </button>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-slate-400">Speed:</span>
+                    {[0.5, 1, 2, 4].map(speed => (
+                      <button
+                        key={speed}
+                        onClick={() => setReplaySpeed(speed)}
+                        className={`px-3 py-1 rounded text-sm ${
+                          replayState.speed === speed
+                            ? 'bg-emerald-600 text-white'
+                            : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                        }`}
+                      >
+                        {speed}x
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Event Markers */}
+                {selectedRecording.events && selectedRecording.events.filter(e => e.type === 'click').length > 0 && (
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-slate-400">Clicks:</span>
+                    <div className="flex gap-1 flex-wrap">
+                      {selectedRecording.events
+                        .filter(e => e.type === 'click')
+                        .slice(0, 20)
+                        .map((event, idx) => (
+                          <button
+                            key={idx}
+                            onClick={() => seekReplay(event.timestamp)}
+                            className="w-3 h-3 rounded-full bg-red-500 hover:bg-red-400"
+                            title={`Click at ${formatDuration(event.timestamp)}`}
+                          />
+                        ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Confirm Dialog */}
+        <ConfirmDialog
+          isOpen={confirmDialog.isOpen}
+          onClose={() => setConfirmDialog({ isOpen: false, type: null, data: null })}
+          onConfirm={() => {
+            if (confirmDialog.type === 'deleteExperiment') {
+              handleAbTestDelete(confirmDialog.data);
+            } else if (confirmDialog.type === 'deleteRecording') {
+              deleteRecording(confirmDialog.data);
+            }
+            setConfirmDialog({ isOpen: false, type: null, data: null });
+          }}
+          title={confirmDialog.type === 'deleteExperiment' ? 'Delete Experiment' : 'Delete Recording'}
+          message={confirmDialog.type === 'deleteExperiment'
+            ? 'Are you sure you want to delete this A/B test experiment? This action cannot be undone.'
+            : 'Are you sure you want to delete this session recording? This action cannot be undone.'}
+          confirmText="Delete"
+          variant="danger"
+        />
       </div>
     );
   }

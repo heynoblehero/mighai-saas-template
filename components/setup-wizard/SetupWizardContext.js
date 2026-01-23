@@ -10,10 +10,9 @@ export const WIZARD_STEPS = [
   { id: 4, name: 'Reference Images', skippable: true },
   { id: 5, name: 'AI API Keys', skippable: true },
   { id: 6, name: 'Email Setup', skippable: true },
-  { id: 7, name: 'Payment Setup', skippable: true },
-  { id: 8, name: 'Plans Setup', skippable: true },
-  { id: 9, name: 'Page Generation', skippable: false },
-  { id: 10, name: 'Complete', skippable: false }
+  { id: 7, name: 'Payment & Plans', skippable: true }, // Combined Payment + Plans
+  { id: 8, name: 'Page Generation', skippable: false },
+  { id: 9, name: 'Complete', skippable: false }
 ];
 
 export function SetupWizardProvider({ children }) {
@@ -196,8 +195,8 @@ export function SetupWizardProvider({ children }) {
     }
   }, []);
 
-  // Generate pages
-  const generatePages = useCallback(async (pages, apiKey, provider = 'gemini', model, pageConfigs = {}) => {
+  // Generate pages - provider defaults to 'claude' now, not 'gemini'
+  const generatePages = useCallback(async (pages, apiKey, provider = 'claude', model, pageConfigs = {}) => {
     try {
       const response = await fetch('/api/admin/setup-wizard/generate-pages', {
         method: 'POST',

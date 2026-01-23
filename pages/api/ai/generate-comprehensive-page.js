@@ -347,13 +347,9 @@ Generate a complete, beautiful, theme-consistent page now!`;
       console.log('  - Warnings:', validationResult.warnings.length);
       console.log('  - Processing time:', validationResult.processingTime + 'ms');
 
-      // Use sanitized code
-      if (validationResult.sanitizedCode) {
-        html = validationResult.sanitizedCode.html || html;
-        css = validationResult.sanitizedCode.css || css;
-        js = validationResult.sanitizedCode.js || js;
-        console.log('✅ Using sanitized code');
-      }
+      // Keep original AI-generated code - don't use sanitized version
+      // The AI output is trusted and needs script/style/link tags to work
+      console.log('✅ Keeping original AI-generated code (not sanitizing)');
 
       // Log validation report
       if (validationResult.errors.length > 0 || validationResult.warnings.length > 0) {

@@ -1,11 +1,26 @@
+import { useState } from 'react';
 import { useSetupWizard } from '../SetupWizardContext';
 
 export default function ReviewCompleteStep() {
   const { wizardState, completeWizard, dismissWizard } = useSetupWizard();
+  const [isCompleting, setIsCompleting] = useState(false);
 
   const handleComplete = async () => {
+    setIsCompleting(true);
+
+    try {
+      // Sync branding colors to support chat widget theme
+      await fetch('/api/admin/setup-wizard/sync-chat-theme', {
+        method: 'POST',
+        credentials: 'include'
+      });
+    } catch (error) {
+      console.error('Failed to sync chat theme:', error);
+      // Continue anyway - chat theme sync is not critical
+    }
+
     await completeWizard();
-    // Optionally refresh the page or redirect
+    // Redirect to admin dashboard
     window.location.href = '/admin';
   };
 
@@ -181,12 +196,22 @@ export default function ReviewCompleteStep() {
       <div className="flex gap-3">
         <button
           onClick={handleComplete}
-          className="flex-1 px-6 py-4 bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white rounded-xl font-medium transition-all flex items-center justify-center gap-2"
+          disabled={isCompleting}
+          className="flex-1 px-6 py-4 bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white rounded-xl font-medium transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-          </svg>
-          Complete Setup
+          {isCompleting ? (
+            <>
+              <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+              Completing...
+            </>
+          ) : (
+            <>
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+              Complete Setup
+            </>
+          )}
         </button>
         <a
           href="/"

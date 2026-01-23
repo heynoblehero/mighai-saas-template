@@ -1,6 +1,9 @@
 /**
  * LocalStorage utility for managing user's AI provider API keys
- * Supports only Claude (Anthropic) and Gemini (Google)
+ * DEPRECATED: The app now uses a global Claude API key configured in Settings > AI Settings.
+ * This utility is kept for backwards compatibility but should not be used for new features.
+ *
+ * Supports only Claude (Anthropic)
  * Keys are obfuscated using Base64 encoding and stored ONLY in browser
  */
 
@@ -8,7 +11,7 @@ const API_KEYS_STORAGE_KEY = 'ai_provider_keys';
 const API_PROVIDER_PREFERENCE_KEY = 'preferred_ai_provider';
 const SELECTED_MODEL_KEY = 'selected_ai_model';
 
-// Available providers and their models
+// Available providers and their models - Claude only
 export const AI_PROVIDERS = {
   claude: {
     name: 'Claude',
@@ -23,27 +26,14 @@ export const AI_PROVIDERS = {
     keyPrefix: 'sk-ant-',
     placeholder: 'sk-ant-api03-...',
     helpUrl: 'https://console.anthropic.com/'
-  },
-  gemini: {
-    name: 'Gemini',
-    company: 'Google',
-    icon: '🔵',
-    color: 'blue',
-    models: [
-      { id: 'gemini-2.0-flash', name: '2.0 Flash', description: 'FREE - Fast responses' },
-      { id: 'gemini-1.5-pro', name: '1.5 Pro', description: 'Higher quality, paid' },
-      { id: 'gemini-1.5-flash', name: '1.5 Flash', description: 'Balanced speed/quality' }
-    ],
-    keyPrefix: 'AIza',
-    placeholder: 'AIza...',
-    helpUrl: 'https://aistudio.google.com/app/apikey'
   }
 };
 
 export const apiKeyStorage = {
   /**
    * Save API keys to localStorage (obfuscated with Base64)
-   * @param {Object} keys - Object with provider keys { claude: 'sk-...', gemini: '...' }
+   * @param {Object} keys - Object with provider keys { claude: 'sk-...' }
+   * @deprecated Use global Claude API key in Settings > AI Settings
    */
   saveKeys: (keys) => {
     try {
@@ -67,6 +57,7 @@ export const apiKeyStorage = {
   /**
    * Get API keys from localStorage
    * @returns {Object|null} - Keys object or null if not found
+   * @deprecated Use global Claude API key in Settings > AI Settings
    */
   getKeys: () => {
     try {
@@ -83,8 +74,9 @@ export const apiKeyStorage = {
 
   /**
    * Update a single provider's API key
-   * @param {string} provider - 'claude' or 'gemini'
+   * @param {string} provider - 'claude'
    * @param {string} key - API key
+   * @deprecated Use global Claude API key in Settings > AI Settings
    */
   updateProvider: (provider, key) => {
     try {
@@ -103,8 +95,9 @@ export const apiKeyStorage = {
 
   /**
    * Get API key for a specific provider
-   * @param {string} provider - 'claude' or 'gemini'
+   * @param {string} provider - 'claude'
    * @returns {string|null} - API key or null
+   * @deprecated Use global Claude API key in Settings > AI Settings
    */
   getProviderKey: (provider) => {
     const keys = apiKeyStorage.getKeys();
@@ -129,6 +122,7 @@ export const apiKeyStorage = {
   /**
    * Check if any API keys are configured
    * @returns {boolean}
+   * @deprecated Use global Claude API key in Settings > AI Settings
    */
   hasKeys: () => {
     const keys = apiKeyStorage.getKeys();
@@ -138,6 +132,7 @@ export const apiKeyStorage = {
   /**
    * Get list of configured providers
    * @returns {string[]} - Array of provider names that have keys
+   * @deprecated Use global Claude API key in Settings > AI Settings
    */
   getConfiguredProviders: () => {
     const keys = apiKeyStorage.getKeys();
@@ -150,8 +145,9 @@ export const apiKeyStorage = {
 
   /**
    * Check if a specific provider is configured
-   * @param {string} provider - 'claude' or 'gemini'
+   * @param {string} provider - 'claude'
    * @returns {boolean}
+   * @deprecated Use global Claude API key in Settings > AI Settings
    */
   isProviderConfigured: (provider) => {
     const key = apiKeyStorage.getProviderKey(provider);
@@ -160,7 +156,8 @@ export const apiKeyStorage = {
 
   /**
    * Save preferred provider
-   * @param {string} provider - 'claude' or 'gemini'
+   * @param {string} provider - 'claude'
+   * @deprecated Claude is the only supported provider
    */
   savePreferredProvider: (provider) => {
     try {
@@ -174,22 +171,12 @@ export const apiKeyStorage = {
   },
 
   /**
-   * Get preferred provider (or first configured provider)
-   * @returns {string|null} - Provider name or null
+   * Get preferred provider (always returns 'claude')
+   * @returns {string} - 'claude'
+   * @deprecated Claude is the only supported provider
    */
   getPreferredProvider: () => {
-    try {
-      const preferred = localStorage.getItem(API_PROVIDER_PREFERENCE_KEY);
-      if (preferred && apiKeyStorage.isProviderConfigured(preferred)) {
-        return preferred;
-      }
-
-      const configured = apiKeyStorage.getConfiguredProviders();
-      return configured.length > 0 ? configured[0] : null;
-    } catch (error) {
-      console.error('[API Key Storage] Error getting preferred provider:', error);
-      return null;
-    }
+    return 'claude';
   },
 
   /**
@@ -229,7 +216,7 @@ export const apiKeyStorage = {
 
   /**
    * Validate key format (basic check, not API validation)
-   * @param {string} provider - Provider name
+   * @param {string} provider - Provider name (must be 'claude')
    * @param {string} key - API key to validate
    * @returns {Object} - { valid: boolean, error: string|null }
    */
@@ -242,30 +229,18 @@ export const apiKeyStorage = {
     const providerInfo = AI_PROVIDERS[provider];
 
     if (!providerInfo) {
-      return { valid: false, error: `Unknown provider: ${provider}` };
+      return { valid: false, error: `Unknown provider: ${provider}. Only Claude is supported.` };
     }
 
-    switch (provider) {
-      case 'claude':
-        if (!trimmedKey.startsWith('sk-ant-')) {
-          return { valid: false, error: 'Claude API keys must start with "sk-ant-"' };
-        }
-        if (trimmedKey.length < 40) {
-          return { valid: false, error: 'Claude API key appears too short (should be 90+ characters)' };
-        }
-        break;
-
-      case 'gemini':
-        if (!trimmedKey.startsWith('AIza')) {
-          return { valid: false, error: 'Gemini API keys must start with "AIza"' };
-        }
-        if (trimmedKey.length !== 39) {
-          return { valid: false, error: 'Gemini API keys should be exactly 39 characters' };
-        }
-        break;
-
-      default:
-        return { valid: false, error: `Unsupported provider: ${provider}` };
+    if (provider === 'claude') {
+      if (!trimmedKey.startsWith('sk-ant-')) {
+        return { valid: false, error: 'Claude API keys must start with "sk-ant-"' };
+      }
+      if (trimmedKey.length < 40) {
+        return { valid: false, error: 'Claude API key appears too short (should be 90+ characters)' };
+      }
+    } else {
+      return { valid: false, error: `Unsupported provider: ${provider}. Only Claude is supported.` };
     }
 
     return { valid: true, error: null };

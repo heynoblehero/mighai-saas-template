@@ -19,10 +19,24 @@ db.run(`
     smtp_username TEXT,
     smtp_password TEXT,
     email_notifications BOOLEAN DEFAULT 1,
+    email_list_api_key TEXT,
+    support_reply_notifications BOOLEAN DEFAULT 1,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
   )
 `);
+
+// Migration: Add missing columns for older databases
+db.run(`ALTER TABLE email_settings ADD COLUMN email_list_api_key TEXT`, (err) => {
+  if (err && !err.message.includes('duplicate column')) {
+    // Column might already exist, that's fine
+  }
+});
+db.run(`ALTER TABLE email_settings ADD COLUMN support_reply_notifications BOOLEAN DEFAULT 1`, (err) => {
+  if (err && !err.message.includes('duplicate column')) {
+    // Column might already exist, that's fine
+  }
+});
 
 // Create email_campaigns table
 db.run(`
@@ -71,16 +85,62 @@ db.run(`
     button_text TEXT DEFAULT 'Support Chat',
     position TEXT DEFAULT 'bottom-right', -- 'bottom-left', 'bottom-right', 'top-left', 'top-right'
     is_enabled BOOLEAN DEFAULT 1,
+    widget_icon TEXT DEFAULT 'chat', -- 'chat', 'help', 'message', 'support' or custom SVG
+    greeting_message TEXT, -- Greeting message shown when chat opens
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
   )
 `);
 
-// Insert default support chat settings if not exists
+// Migration: Add widget_icon and greeting_message columns if they don't exist
+db.run(`ALTER TABLE support_chat_settings ADD COLUMN widget_icon TEXT DEFAULT 'chat'`, (err) => {
+  if (err && !err.message.includes('duplicate column')) {
+    // Column might already exist, that's fine
+  }
+});
+db.run(`ALTER TABLE support_chat_settings ADD COLUMN greeting_message TEXT`, (err) => {
+  if (err && !err.message.includes('duplicate column')) {
+    // Column might already exist, that's fine
+  }
+});
+
+// Insert default support chat settings if not exists (without widget_icon for backwards compatibility)
 db.run(`
   INSERT OR IGNORE INTO support_chat_settings (id, visibility, primary_color, secondary_color, button_text, position, is_enabled)
   VALUES (1, 'public', '#3B82F6', '#10B981', 'Support Chat', 'bottom-right', 1)
 `);
+
+// Migration: Add theme customization columns to support_chat_settings
+db.run(`ALTER TABLE support_chat_settings ADD COLUMN background_color TEXT DEFAULT '#FFFFFF'`, (err) => {
+  if (err && !err.message.includes('duplicate column')) {
+    // Column might already exist, that's fine
+  }
+});
+db.run(`ALTER TABLE support_chat_settings ADD COLUMN header_text_color TEXT DEFAULT '#FFFFFF'`, (err) => {
+  if (err && !err.message.includes('duplicate column')) {
+    // Column might already exist, that's fine
+  }
+});
+db.run(`ALTER TABLE support_chat_settings ADD COLUMN customer_text_color TEXT DEFAULT '#FFFFFF'`, (err) => {
+  if (err && !err.message.includes('duplicate column')) {
+    // Column might already exist, that's fine
+  }
+});
+db.run(`ALTER TABLE support_chat_settings ADD COLUMN admin_text_color TEXT DEFAULT '#1F2937'`, (err) => {
+  if (err && !err.message.includes('duplicate column')) {
+    // Column might already exist, that's fine
+  }
+});
+db.run(`ALTER TABLE support_chat_settings ADD COLUMN border_radius TEXT DEFAULT '12'`, (err) => {
+  if (err && !err.message.includes('duplicate column')) {
+    // Column might already exist, that's fine
+  }
+});
+db.run(`ALTER TABLE support_chat_settings ADD COLUMN font_family TEXT DEFAULT 'system-ui'`, (err) => {
+  if (err && !err.message.includes('duplicate column')) {
+    // Column might already exist, that's fine
+  }
+});
 
 // Create analytics_sessions table for proper session tracking
 db.run(`
@@ -151,6 +211,19 @@ db.run(`
     name TEXT,
     session_token TEXT UNIQUE,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  )
+`);
+
+// Create email_list table for newsletter/marketing subscribers
+db.run(`
+  CREATE TABLE IF NOT EXISTS email_list (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    email TEXT UNIQUE NOT NULL,
+    name TEXT,
+    source TEXT NOT NULL DEFAULT 'manual', -- 'chat', 'api', 'signup', 'manual'
+    subscribed BOOLEAN DEFAULT 1,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    unsubscribed_at DATETIME
   )
 `);
 
@@ -323,6 +396,13 @@ db.run(`
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
   )
 `);
+
+// Migration: Add lemonsqueezy_api_key column for wizard state
+db.run(`ALTER TABLE setup_wizard_state ADD COLUMN lemonsqueezy_api_key TEXT`, (err) => {
+  if (err && !err.message.includes('duplicate column')) {
+    // Column might already exist, that's fine
+  }
+});
 
 console.log('Database tables created successfully!');
 

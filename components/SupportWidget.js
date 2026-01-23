@@ -1,26 +1,43 @@
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/router';
 
-export default function SupportWidget() {
+/**
+ * Support Chat Widget
+ *
+ * @param {Object} props
+ * @param {boolean} props.previewMode - If true, shows a static preview without functionality
+ * @param {Object} props.previewSettings - Settings to use in preview mode (overrides API fetch)
+ */
+export default function SupportWidget({ previewMode = false, previewSettings = null }) {
   const router = useRouter();
-  const [isOpen, setIsOpen] = useState(false);
+  const [isOpen, setIsOpen] = useState(previewMode); // Start open in preview mode
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState('');
   const [loading, setLoading] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
-  const [settings, setSettings] = useState(null);
-  const [shouldShowWidget, setShouldShowWidget] = useState(false);
+  const [settings, setSettings] = useState(previewMode ? previewSettings : null);
+  const [shouldShowWidget, setShouldShowWidget] = useState(previewMode);
   const messagesEndRef = useRef(null);
 
   // Email collection state
-  const [userEmail, setUserEmail] = useState(null);
-  const [userType, setUserType] = useState(null); // 'subscriber' or 'guest'
+  const [userEmail, setUserEmail] = useState(previewMode ? 'preview@example.com' : null);
+  const [userType, setUserType] = useState(previewMode ? 'guest' : null);
   const [showEmailForm, setShowEmailForm] = useState(false);
   const [emailInput, setEmailInput] = useState('');
   const [emailError, setEmailError] = useState('');
   const [registering, setRegistering] = useState(false);
 
+  // In preview mode, update settings when previewSettings changes
   useEffect(() => {
+    if (previewMode && previewSettings) {
+      setSettings(previewSettings);
+    }
+  }, [previewMode, previewSettings]);
+
+  useEffect(() => {
+    // Skip all side effects in preview mode
+    if (previewMode) return;
+
     // Check if on admin page
     if (router.pathname.startsWith('/admin')) {
       setShouldShowWidget(false);
@@ -29,35 +46,46 @@ export default function SupportWidget() {
 
     // Fetch settings and check if widget should be shown
     fetchSettings();
-  }, [router.pathname]);
+  }, [router.pathname, previewMode]);
 
   useEffect(() => {
+    // Skip visibility check in preview mode
+    if (previewMode) return;
+
     if (settings && settings.is_enabled) {
       checkVisibility();
     }
-  }, [settings]);
+  }, [settings, previewMode]);
 
   useEffect(() => {
+    // Skip message fetching in preview mode
+    if (previewMode) return;
+
     if (isOpen && settings && settings.is_enabled && (userEmail || userType === 'subscriber')) {
       fetchMessages();
       // Poll for new messages every 10 seconds when open
       const interval = setInterval(fetchMessages, 10000);
       return () => clearInterval(interval);
     }
-  }, [isOpen, settings, userEmail, userType]);
+  }, [isOpen, settings, userEmail, userType, previewMode]);
 
   useEffect(() => {
+    // Skip unread check in preview mode
+    if (previewMode) return;
+
     // Poll for unread count every 30 seconds when closed
     if (!isOpen && settings && settings.is_enabled && (userEmail || userType === 'subscriber')) {
       checkUnreadMessages();
       const interval = setInterval(checkUnreadMessages, 30000);
       return () => clearInterval(interval);
     }
-  }, [isOpen, settings, userEmail, userType]);
+  }, [isOpen, settings, userEmail, userType, previewMode]);
 
   useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
+    if (!previewMode) {
+      scrollToBottom();
+    }
+  }, [messages, previewMode]);
 
   const fetchSettings = async () => {
     try {
@@ -75,6 +103,12 @@ export default function SupportWidget() {
           button_text: 'Support Chat',
           position: 'bottom-right',
           is_enabled: true,
+          background_color: '#FFFFFF',
+          header_text_color: '#FFFFFF',
+          customer_text_color: '#FFFFFF',
+          admin_text_color: '#1F2937',
+          border_radius: '12',
+          font_family: 'system-ui',
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
         });
@@ -90,6 +124,12 @@ export default function SupportWidget() {
         button_text: 'Support Chat',
         position: 'bottom-right',
         is_enabled: true,
+        background_color: '#FFFFFF',
+        header_text_color: '#FFFFFF',
+        customer_text_color: '#FFFFFF',
+        admin_text_color: '#1F2937',
+        border_radius: '12',
+        font_family: 'system-ui',
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       });
@@ -326,10 +366,165 @@ export default function SupportWidget() {
     }
   };
 
-  if (!settings || !shouldShowWidget) {
+  // Preset icons for the widget
+  const presetIcons = {
+    chat: 'M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z',
+    help: 'M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z',
+    message: 'M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z',
+    support: 'M18.364 5.636l-3.536 3.536m0 5.656l3.536 3.536M9.172 9.172L5.636 5.636m3.536 9.192l-3.536 3.536M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-5 0a4 4 0 11-8 0 4 4 0 018 0z'
+  };
+
+  // Get icon path based on settings
+  const getIconPath = () => {
+    if (!settings?.widget_icon) return presetIcons.chat;
+    if (settings.widget_icon.startsWith('<svg')) {
+      // Custom SVG - return null, will use dangerouslySetInnerHTML
+      return null;
+    }
+    return presetIcons[settings.widget_icon] || presetIcons.chat;
+  };
+
+  // Render the widget icon
+  const renderIcon = () => {
+    const iconPath = getIconPath();
+    if (iconPath === null && settings?.widget_icon?.startsWith('<svg')) {
+      // Custom SVG
+      return <span dangerouslySetInnerHTML={{ __html: settings.widget_icon }} />;
+    }
+    return (
+      <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={iconPath} />
+      </svg>
+    );
+  };
+
+  // Sample messages for preview mode
+  const previewMessages = [
+    {
+      id: 1,
+      sender_type: 'customer',
+      message: 'Hi! I have a question about my subscription.',
+      created_at: new Date(Date.now() - 3600000).toISOString()
+    },
+    {
+      id: 2,
+      sender_type: 'admin',
+      message: 'Hello! I\'d be happy to help. What would you like to know?',
+      created_at: new Date(Date.now() - 3500000).toISOString()
+    },
+    {
+      id: 3,
+      sender_type: 'customer',
+      message: 'How do I upgrade my plan?',
+      created_at: new Date(Date.now() - 3400000).toISOString()
+    }
+  ];
+
+  // Get messages to display (preview or real)
+  const displayMessages = previewMode ? previewMessages : messages;
+
+  if (!settings || (!shouldShowWidget && !previewMode)) {
     return null; // Don't render anything if settings aren't loaded or widget shouldn't be shown
   }
 
+  // Preview mode renders just the panel (no fixed positioning, no backdrop, always open)
+  if (previewMode) {
+    return (
+      <div
+        className="w-full h-[500px] shadow-2xl flex flex-col"
+        style={{
+          backgroundColor: settings.background_color || '#FFFFFF',
+          borderRadius: `${settings.border_radius || 12}px`,
+          fontFamily: settings.font_family || 'system-ui'
+        }}
+      >
+        {/* Header */}
+        <div
+          className="p-4 flex justify-between items-center"
+          style={{
+            backgroundColor: settings.primary_color || '#3B82F6',
+            borderTopLeftRadius: `${settings.border_radius || 12}px`,
+            borderTopRightRadius: `${settings.border_radius || 12}px`
+          }}
+        >
+          <div>
+            <h3 className="font-semibold" style={{ color: settings.header_text_color || '#FFFFFF' }}>
+              {settings.button_text || 'Support Chat'}
+            </h3>
+            <p className="text-xs opacity-80" style={{ color: settings.header_text_color || '#FFFFFF' }}>
+              We typically reply within a few hours
+            </p>
+          </div>
+          <button
+            className="opacity-80 hover:opacity-100 cursor-default"
+            style={{ color: settings.header_text_color || '#FFFFFF' }}
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        {/* Preview Messages */}
+        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+          {displayMessages.map((message) => {
+            const isCustomer = message.sender_type === 'customer';
+            const msgTextColor = isCustomer
+              ? (settings.customer_text_color || '#FFFFFF')
+              : (settings.admin_text_color || '#1F2937');
+
+            return (
+              <div key={message.id} className={`flex ${isCustomer ? 'justify-end' : 'justify-start'}`}>
+                <div
+                  className={`max-w-xs px-4 py-2 rounded-lg ${
+                    isCustomer ? 'rounded-br-none' : 'rounded-bl-none'
+                  }`}
+                  style={{
+                    backgroundColor: isCustomer ? (settings.primary_color || '#3B82F6') : (settings.secondary_color || '#10B981'),
+                    color: msgTextColor
+                  }}
+                >
+                  <p className="text-sm">{message.message}</p>
+                  <p
+                    className="text-xs mt-1 opacity-70"
+                    style={{ color: msgTextColor }}
+                  >
+                    {formatTime(message.created_at)}
+                  </p>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Message Input (preview only, not functional) */}
+        <div className="p-4 border-t border-gray-200">
+          <div className="flex space-x-2">
+            <input
+              type="text"
+              placeholder="Type your message..."
+              disabled
+              className="flex-1 px-3 py-2 border border-gray-300 rounded-md bg-gray-50 cursor-not-allowed"
+            />
+            <button
+              disabled
+              className="px-4 py-2 rounded-md cursor-not-allowed"
+              style={{
+                backgroundColor: settings.primary_color || '#3B82F6',
+                color: 'white'
+              }}
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+              </svg>
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Normal mode - full functionality with fixed positioning
   return (
     <>
       {/* Support Widget Button */}
@@ -342,9 +537,7 @@ export default function SupportWidget() {
           backgroundColor: settings.primary_color,
         }}
       >
-        <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-        </svg>
+        {renderIcon()}
         {unreadCount > 0 && (
           <div className="absolute -top-2 -right-2 bg-red-500 text-white text-xs rounded-full w-6 h-6 flex items-center justify-center">
             {unreadCount > 9 ? '9+' : unreadCount}
@@ -354,23 +547,36 @@ export default function SupportWidget() {
 
       {/* Support Widget Panel */}
       <div
-        className={`fixed w-96 h-[600px] bg-white rounded-lg shadow-2xl transition-all duration-300 z-50 ${
+        className={`fixed w-96 h-[600px] shadow-2xl transition-all duration-300 z-50 ${
           isOpen ? 'scale-100 opacity-100' : 'scale-0 opacity-0'
         } flex flex-col ${getPositionClasses()}`}
+        style={{
+          backgroundColor: settings.background_color || '#FFFFFF',
+          borderRadius: `${settings.border_radius || 12}px`,
+          fontFamily: settings.font_family || 'system-ui'
+        }}
       >
         {/* Header */}
         <div
-          className="text-white p-4 rounded-t-lg flex justify-between items-center"
-          style={{ backgroundColor: settings.primary_color }}
+          className="p-4 flex justify-between items-center"
+          style={{
+            backgroundColor: settings.primary_color,
+            borderTopLeftRadius: `${settings.border_radius || 12}px`,
+            borderTopRightRadius: `${settings.border_radius || 12}px`
+          }}
         >
           <div>
-            <h3 className="font-semibold">Support Chat</h3>
-            <p className="text-xs" style={{ color: `${settings.primary_color}80` }}>We typically reply within a few hours</p>
+            <h3 className="font-semibold" style={{ color: settings.header_text_color || '#FFFFFF' }}>
+              {settings.button_text || 'Support Chat'}
+            </h3>
+            <p className="text-xs opacity-80" style={{ color: settings.header_text_color || '#FFFFFF' }}>
+              We typically reply within a few hours
+            </p>
           </div>
           <button
             onClick={() => setIsOpen(false)}
-            className="text-white"
-            style={{ color: `${settings.primary_color}80` }}
+            className="opacity-80 hover:opacity-100"
+            style={{ color: settings.header_text_color || '#FFFFFF' }}
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -411,9 +617,30 @@ export default function SupportWidget() {
             </div>
           ) : messages.length === 0 ? (
             <div className="text-center text-gray-500 mt-8">
-              <svg className="w-12 h-12 mx-auto mb-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-              </svg>
+              {settings.greeting_message ? (
+                <div className="bg-gray-100 rounded-lg p-4 mb-6 text-left">
+                  <div className="flex items-start gap-3">
+                    <div
+                      className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
+                      style={{ backgroundColor: settings.secondary_color }}
+                    >
+                      <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                      </svg>
+                    </div>
+                    <div>
+                      <p className="text-gray-700 text-sm">{settings.greeting_message}</p>
+                      <p className="text-xs text-gray-400 mt-1">Support Team</p>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <svg className="w-12 h-12 mx-auto mb-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                  </svg>
+                </>
+              )}
               <p className="text-sm">Send us a message!</p>
               <p className="text-xs text-gray-400">We're here to help with any questions.</p>
             </div>
@@ -422,6 +649,10 @@ export default function SupportWidget() {
               {messages.map((message, index) => {
                 const showDate = index === 0 ||
                   formatDate(messages[index - 1].created_at) !== formatDate(message.created_at);
+                const isCustomer = message.sender_type === 'customer';
+                const msgTextColor = isCustomer
+                  ? (settings.customer_text_color || '#FFFFFF')
+                  : (settings.admin_text_color || '#1F2937');
 
                 return (
                   <div key={message.id}>
@@ -430,22 +661,21 @@ export default function SupportWidget() {
                         {formatDate(message.created_at)}
                       </div>
                     )}
-                    <div className={`flex ${message.sender_type === 'customer' ? 'justify-end' : 'justify-start'}`}>
-                      <div className={`max-w-xs px-4 py-2 rounded-lg ${
-                        message.sender_type === 'customer'
-                          ? `text-white rounded-br-none`
-                          : `text-gray-800 rounded-bl-none`
-                      }`}
-                      style={{
-                        backgroundColor: message.sender_type === 'customer' ? settings.primary_color : settings.secondary_color
-                      }}>
-                        <p className="text-sm">{message.message}</p>
-                        <p className={`text-xs mt-1 ${
-                          message.sender_type === 'customer' ? 'text-white' : 'text-gray-500'
+                    <div className={`flex ${isCustomer ? 'justify-end' : 'justify-start'}`}>
+                      <div
+                        className={`max-w-xs px-4 py-2 rounded-lg ${
+                          isCustomer ? 'rounded-br-none' : 'rounded-bl-none'
                         }`}
                         style={{
-                          color: message.sender_type === 'customer' ? `${settings.primary_color}80` : 'text-gray-500'
-                        }}>
+                          backgroundColor: isCustomer ? settings.primary_color : settings.secondary_color,
+                          color: msgTextColor
+                        }}
+                      >
+                        <p className="text-sm">{message.message}</p>
+                        <p
+                          className="text-xs mt-1 opacity-70"
+                          style={{ color: msgTextColor }}
+                        >
                           {formatTime(message.created_at)}
                         </p>
                       </div>

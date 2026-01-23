@@ -54,10 +54,16 @@ class EmailService {
         smtp_username TEXT,
         smtp_password TEXT,
         email_notifications BOOLEAN DEFAULT 1,
+        email_list_api_key TEXT,
+        support_reply_notifications BOOLEAN DEFAULT 1,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
       )
     `);
+
+    // Migration: Add missing columns for older databases
+    db.run(`ALTER TABLE email_settings ADD COLUMN email_list_api_key TEXT`, () => {});
+    db.run(`ALTER TABLE email_settings ADD COLUMN support_reply_notifications BOOLEAN DEFAULT 1`, () => {});
 
     // Create email_campaigns table
     db.run(`
@@ -308,6 +314,72 @@ class EmailService {
           </div>
         `,
         text_content: 'New support request from {{USER_EMAIL}}: {{SUBJECT}} - {{MESSAGE}}'
+      },
+      {
+        name: 'Support Reply Notification',
+        subject: 'Reply to Your Support Request - {{SITE_NAME}}',
+        template_type: 'transactional',
+        html_content: `
+          <div style="font-family: Inter, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+            <div style="text-align: center; margin-bottom: 30px;">
+              <h1 style="color: #00d084; margin: 0; font-size: 24px;">{{SITE_NAME}}</h1>
+            </div>
+            <div style="background: #f8f9fa; padding: 30px; border-radius: 8px; border-left: 4px solid #00d084;">
+              <h2 style="color: #333; margin-top: 0;">New Reply to Your Support Request</h2>
+              <p style="color: #666; line-height: 1.6;">Hi {{USER_NAME}},</p>
+              <p style="color: #666; line-height: 1.6;">We've responded to your support request:</p>
+              <div style="background: white; padding: 20px; border-radius: 6px; margin: 20px 0; border-left: 3px solid #00d084;">
+                <p style="color: #333; line-height: 1.6; margin: 0;">{{REPLY_MESSAGE}}</p>
+              </div>
+              <p style="color: #666; line-height: 1.6;">You can continue the conversation by visiting our website and opening the support chat.</p>
+              <div style="text-align: center; margin: 30px 0;">
+                <a href="{{SITE_URL}}" style="background: #00d084; color: white; padding: 15px 30px; border-radius: 6px; text-decoration: none; font-weight: bold;">Visit Our Site</a>
+              </div>
+              <p style="color: #999; font-size: 14px; margin-top: 30px;">Thank you for reaching out to us!</p>
+            </div>
+          </div>
+        `,
+        text_content: 'Hi {{USER_NAME}}, we have replied to your support request: {{REPLY_MESSAGE}}. Visit {{SITE_URL}} to continue the conversation.'
+      },
+      {
+        name: 'Welcome - Account Created from Purchase',
+        subject: 'Welcome to {{SITE_NAME}} - Your Account is Ready!',
+        template_type: 'transactional',
+        html_content: `
+          <div style="font-family: Inter, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+            <div style="text-align: center; margin-bottom: 30px;">
+              <h1 style="color: #00d084; margin: 0; font-size: 24px;">🎉 {{SITE_NAME}}</h1>
+            </div>
+            <div style="background: #f8f9fa; padding: 30px; border-radius: 8px; border-left: 4px solid #00d084;">
+              <h2 style="color: #333; margin-top: 0;">Welcome! Your Account is Ready</h2>
+              <p style="color: #666; line-height: 1.6;">Hi {{USER_NAME}},</p>
+              <p style="color: #666; line-height: 1.6;">Thank you for your purchase! We've automatically created an account for you. Here are your login credentials:</p>
+              <div style="background: white; padding: 20px; border-radius: 6px; margin: 20px 0; border: 1px solid #e5e7eb;">
+                <h3 style="margin-top: 0; color: #333; font-size: 16px;">Your Login Details</h3>
+                <table style="width: 100%; border-collapse: collapse;">
+                  <tr>
+                    <td style="padding: 8px 0; color: #666; width: 100px;">Email:</td>
+                    <td style="padding: 8px 0; color: #333; font-weight: 500;">{{EMAIL}}</td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 8px 0; color: #666;">Password:</td>
+                    <td style="padding: 8px 0; font-family: monospace; background: #f3f4f6; padding: 8px 12px; border-radius: 4px; color: #333; font-weight: bold;">{{TEMP_PASSWORD}}</td>
+                  </tr>
+                </table>
+              </div>
+              <div style="background: #fef3c7; padding: 15px; border-radius: 6px; margin: 20px 0; border-left: 3px solid #f59e0b;">
+                <p style="color: #92400e; margin: 0; font-size: 14px;"><strong>Important:</strong> Please change your password after your first login for security.</p>
+              </div>
+              <div style="text-align: center; margin: 30px 0;">
+                <a href="{{LOGIN_URL}}" style="background: #00d084; color: white; padding: 15px 30px; border-radius: 6px; text-decoration: none; font-weight: bold; display: inline-block;">Log In to Your Account</a>
+              </div>
+              <p style="color: #666; line-height: 1.6;">Your subscription is now active and you have full access to all features included in your plan.</p>
+              <p style="color: #666; line-height: 1.6;">If you have any questions, feel free to reach out to our support team.</p>
+              <p style="color: #999; font-size: 14px; margin-top: 30px;">Welcome aboard!<br>The {{SITE_NAME}} Team</p>
+            </div>
+          </div>
+        `,
+        text_content: 'Welcome to {{SITE_NAME}}! Your account has been created. Email: {{EMAIL}}, Temporary Password: {{TEMP_PASSWORD}}. Please log in at {{LOGIN_URL}} and change your password. Your subscription is now active!'
       }
     ];
 
@@ -562,7 +634,9 @@ class EmailService {
           admin_email: 'admin@mighai.com',
           from_email: 'noreply@mighai.com',
           from_name: 'Mighai',
-          email_notifications: true
+          email_notifications: true,
+          email_list_api_key: null,
+          support_reply_notifications: true
         });
       });
     });
@@ -576,10 +650,14 @@ class EmailService {
       db.run(
         `UPDATE email_settings SET
          admin_email = ?, from_email = ?, from_name = ?,
-         resend_api_key = ?, email_notifications = ?, updated_at = CURRENT_TIMESTAMP
+         resend_api_key = ?, email_notifications = ?,
+         email_list_api_key = COALESCE(?, email_list_api_key),
+         support_reply_notifications = COALESCE(?, support_reply_notifications),
+         updated_at = CURRENT_TIMESTAMP
          WHERE id = 1`,
         [settings.admin_email, settings.from_email, settings.from_name,
-         settings.resend_api_key, settings.email_notifications],
+         settings.resend_api_key, settings.email_notifications,
+         settings.email_list_api_key, settings.support_reply_notifications],
         function(err) {
           if (err) reject(err);
           else resolve(this.changes > 0);

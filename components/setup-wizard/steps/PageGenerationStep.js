@@ -1,5 +1,6 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useSetupWizard } from '../SetupWizardContext';
+import { apiKeyStorage } from '../../../utils/apiKeyStorage';
 
 const PAGES = [
   { id: 'landing-page', name: 'Landing Page', description: 'Homepage with hero, features, and CTA' },
@@ -118,7 +119,7 @@ function PageScreenshotUploader({ pageId, screenshots, onScreenshotsChange }) {
 }
 
 export default function PageGenerationStep() {
-  const { wizardState, generatePages, nextStep } = useSetupWizard();
+  const { wizardState, generatePages, nextStep, prevStep } = useSetupWizard();
 
   // All pages deselected by default
   const [selectedPages, setSelectedPages] = useState([]);
@@ -142,6 +143,11 @@ export default function PageGenerationStep() {
   });
 
   const generatedPages = wizardState?.generated_pages || {};
+
+  // Check if any pages have been generated (from this session or previous)
+  const hasGeneratedPages = completed || Object.keys(generatedPages).some(
+    pageId => generatedPages[pageId]?.generated
+  );
 
   const togglePage = (pageId) => {
     if (selectedPages.includes(pageId)) {
@@ -217,12 +223,16 @@ export default function PageGenerationStep() {
       return;
     }
 
-    // Get API key from localStorage
-    const provider = localStorage.getItem('ai_provider') || 'gemini';
-    const apiKey = localStorage.getItem(`${provider}_api_key`);
+    // Get provider from wizardState (database) as source of truth, fallback to apiKeyStorage
+    // Default to 'claude' instead of 'gemini'
+    const provider = wizardState?.ai_provider || apiKeyStorage.getPreferredProvider() || 'claude';
+    // apiKeyStorage stores keys un-encoded, so no need for atob()
+    const apiKey = apiKeyStorage.getProviderKey(provider);
+
+    console.log('Page generation provider:', provider, 'from:', wizardState?.ai_provider ? 'wizardState' : apiKeyStorage.getPreferredProvider() ? 'apiKeyStorage' : 'default');
 
     if (!apiKey) {
-      alert('Please configure an AI API key first (Step 5)');
+      alert(`Please configure your ${provider === 'claude' ? 'Claude' : 'Gemini'} API key first (Step 5)`);
       return;
     }
 
@@ -243,7 +253,8 @@ export default function PageGenerationStep() {
         };
       });
 
-      const result = await generatePages(selectedPages, atob(apiKey), provider, null, pageConfigsToSend);
+      // apiKeyStorage stores keys un-encoded, so pass directly (no atob needed)
+      const result = await generatePages(selectedPages, apiKey, provider, null, pageConfigsToSend);
 
       if (result.success) {
         // Update progress based on results
@@ -290,8 +301,8 @@ export default function PageGenerationStep() {
       </div>
 
       <div className="space-y-6">
-        {/* AI Provider notice */}
-        {typeof window !== 'undefined' && !localStorage.getItem('ai_provider') && (
+        {/* AI Provider notice - check wizardState first, then apiKeyStorage */}
+        {!wizardState?.ai_api_key_configured && typeof window !== 'undefined' && !apiKeyStorage.hasKeys() && (
           <div className="p-4 bg-yellow-500/10 border border-yellow-500/30 rounded-xl flex items-start gap-3">
             <svg className="w-5 h-5 text-yellow-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
@@ -526,29 +537,120 @@ export default function PageGenerationStep() {
           </div>
         )}
 
-        {/* Info */}
-        <div className="p-4 bg-slate-800/30 rounded-xl border border-slate-700/50">
-          <h4 className="text-sm font-medium text-slate-300 mb-2">How it works</h4>
-          <ul className="text-sm text-slate-500 space-y-1">
-            <li className="flex items-start gap-2">
-              <span className="text-emerald-500 mt-1">1.</span>
-              Select the pages you want to generate
-            </li>
-            <li className="flex items-start gap-2">
-              <span className="text-emerald-500 mt-1">2.</span>
-              Expand each page to add custom instructions or inspiration screenshots
-            </li>
-            <li className="flex items-start gap-2">
-              <span className="text-emerald-500 mt-1">3.</span>
-              Mark each page as configured (or it auto-marks when you add content)
-            </li>
-            <li className="flex items-start gap-2">
-              <span className="text-emerald-500 mt-1">4.</span>
-              Click generate when all selected pages are configured
-            </li>
-          </ul>
+        {/* Info - only show if no pages generated yet */}
+        {!hasGeneratedPages && (
+          <div className="p-4 bg-slate-800/30 rounded-xl border border-slate-700/50">
+            <h4 className="text-sm font-medium text-slate-300 mb-2">How it works</h4>
+            <ul className="text-sm text-slate-500 space-y-1">
+              <li className="flex items-start gap-2">
+                <span className="text-emerald-500 mt-1">1.</span>
+                Select the pages you want to generate
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-emerald-500 mt-1">2.</span>
+                Expand each page to add custom instructions or inspiration screenshots
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-emerald-500 mt-1">3.</span>
+                Mark each page as configured (or it auto-marks when you add content)
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-emerald-500 mt-1">4.</span>
+                Click generate when all selected pages are configured
+              </li>
+            </ul>
+          </div>
+        )}
+
+        {/* Internal Navigation - Back and Continue buttons */}
+        <div className="flex items-center justify-between pt-6 border-t border-slate-700 mt-6">
+          <button
+            onClick={prevStep}
+            disabled={generating}
+            className="px-4 py-2 text-slate-300 hover:text-white hover:bg-slate-700 rounded-lg transition-colors flex items-center gap-2 disabled:opacity-50"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+            Back
+          </button>
+
+          <button
+            onClick={nextStep}
+            disabled={!hasGeneratedPages || generating}
+            className="px-6 py-2.5 bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white rounded-lg font-medium transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {hasGeneratedPages ? (
+              <>
+                Continue
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+              </>
+            ) : (
+              <>
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                </svg>
+                Generate pages to continue
+              </>
+            )}
+          </button>
         </div>
       </div>
+
+      {/* Full-page Loading Overlay */}
+      {generating && (
+        <div className="fixed inset-0 bg-black/90 z-[60] flex items-center justify-center">
+          <div className="text-center max-w-md mx-4">
+            <div className="w-16 h-16 border-4 border-emerald-500/30 border-t-emerald-500 rounded-full animate-spin mx-auto mb-6"></div>
+            <h3 className="text-2xl font-bold text-white mb-2">Building Your Pages</h3>
+            <p className="text-slate-400 mb-8">
+              Using your SaaS info, branding, and reference images to generate custom pages...
+            </p>
+
+            {/* Per-page status */}
+            <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700">
+              <div className="space-y-3">
+                {selectedPages.map(pageId => {
+                  const page = PAGES.find(p => p.id === pageId);
+                  const status = progress[pageId];
+                  return (
+                    <div key={pageId} className="flex items-center gap-3">
+                      {status === 'generating' && (
+                        <div className="w-5 h-5 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin flex-shrink-0"></div>
+                      )}
+                      {status === 'completed' && (
+                        <svg className="w-5 h-5 text-emerald-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                        </svg>
+                      )}
+                      {status === 'error' && (
+                        <svg className="w-5 h-5 text-red-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      )}
+                      {!status && (
+                        <div className="w-5 h-5 border-2 border-slate-600 rounded-full flex-shrink-0"></div>
+                      )}
+                      <span className={`text-sm ${status === 'completed' ? 'text-emerald-400' : status === 'error' ? 'text-red-400' : 'text-slate-300'}`}>
+                        {page?.name || pageId}
+                      </span>
+                      {errors[pageId] && (
+                        <span className="text-xs text-red-400 ml-auto">{errors[pageId]}</span>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            <p className="text-xs text-slate-500 mt-4">
+              This may take a minute per page...
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

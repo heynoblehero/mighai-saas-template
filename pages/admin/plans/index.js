@@ -1,11 +1,15 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import AdminLayout from '../../../components/AdminLayout';
+import { useToast } from '../../../contexts/ToastContext';
+import ConfirmDialog from '../../../components/ui/ConfirmDialog';
 
 export default function PlansAdmin() {
   const [plans, setPlans] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [confirmDialog, setConfirmDialog] = useState({ isOpen: false, data: null });
+  const toast = useToast();
 
   useEffect(() => {
     fetchPlans();
@@ -31,20 +35,23 @@ export default function PlansAdmin() {
     }
   };
 
+  const confirmDeletePlan = (id) => {
+    setConfirmDialog({ isOpen: true, data: id });
+  };
+
   const deletePlan = async (id) => {
-    if (!confirm('Are you sure you want to delete this plan?')) return;
-    
     try {
       const response = await fetch(`/api/plans/${id}`, { method: 'DELETE' });
       const data = await response.json();
-      
+
       if (response.ok) {
         setPlans(plans.filter(plan => plan.id !== id));
+        toast.success('Plan deleted successfully');
       } else {
-        alert(data.error || 'Failed to delete plan');
+        toast.error(data.error || 'Failed to delete plan');
       }
     } catch (error) {
-      alert('Failed to delete plan');
+      toast.error('Failed to delete plan');
     }
   };
 
@@ -205,7 +212,7 @@ export default function PlansAdmin() {
                           </Link>
                           {plan.name !== 'free' && (
                             <button
-                              onClick={() => deletePlan(plan.id)}
+                              onClick={() => confirmDeletePlan(plan.id)}
                               className="text-red-400 hover:text-red-300 transition-colors"
                             >
                               Delete
@@ -256,6 +263,20 @@ export default function PlansAdmin() {
           }
         }
       `}</style>
+
+      {/* Confirm Dialog */}
+      <ConfirmDialog
+        isOpen={confirmDialog.isOpen}
+        onClose={() => setConfirmDialog({ isOpen: false, data: null })}
+        onConfirm={() => {
+          deletePlan(confirmDialog.data);
+          setConfirmDialog({ isOpen: false, data: null });
+        }}
+        title="Delete Plan"
+        message="Are you sure you want to delete this plan? This action cannot be undone."
+        confirmText="Delete"
+        variant="danger"
+      />
     </AdminLayout>
   );
 }

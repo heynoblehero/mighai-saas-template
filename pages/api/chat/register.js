@@ -14,6 +14,35 @@ function ensureTable() {
   `).run();
 }
 
+// Create email_list table if it doesn't exist
+function ensureEmailListTable() {
+  db.prepare(`
+    CREATE TABLE IF NOT EXISTS email_list (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      email TEXT UNIQUE NOT NULL,
+      name TEXT,
+      source TEXT NOT NULL DEFAULT 'manual',
+      subscribed BOOLEAN DEFAULT 1,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      unsubscribed_at DATETIME
+    )
+  `).run();
+}
+
+// Add user to email list
+function addToEmailList(email, name) {
+  try {
+    ensureEmailListTable();
+    db.prepare(`
+      INSERT OR IGNORE INTO email_list (email, name, source, subscribed)
+      VALUES (?, ?, 'chat', 1)
+    `).run(email.toLowerCase().trim(), name?.trim() || null);
+  } catch (error) {
+    console.error('Error adding to email list:', error);
+    // Don't throw - email list is non-critical
+  }
+}
+
 function generateToken() {
   return 'chat_' + crypto.randomBytes(32).toString('hex');
 }
@@ -56,6 +85,9 @@ export default async function handler(req, res) {
       `).run(email.toLowerCase().trim(), name?.trim() || null, token);
 
       chatUser = db.prepare('SELECT * FROM chat_users WHERE id = ?').get(result.lastInsertRowid);
+
+      // Add to email list for new users
+      addToEmailList(email, name);
     }
 
     // Set cookie for the token

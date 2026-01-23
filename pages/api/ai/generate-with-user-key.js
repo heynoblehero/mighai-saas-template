@@ -20,7 +20,7 @@ export default async function handler(req, res) {
     imagePath,
     // User-provided API key and provider
     userApiKey,
-    provider = 'gemini',
+    provider = 'claude',
     conversationId,
     conversationHistory = []
   } = req.body;
@@ -223,14 +223,9 @@ Now generate a complete, beautiful page based on the user's request.`;
 
       validationReport = generateValidationReport(validation);
 
-      if (validation.sanitizedCode) {
-        validatedResult = {
-          html_code: validation.sanitizedCode.html || result.html_code,
-          css_code: validation.sanitizedCode.css || result.css_code,
-          js_code: validation.sanitizedCode.js || result.js_code,
-          full_content: result.full_content
-        };
-      }
+      // Keep original AI-generated code - don't use sanitized version
+      // The AI output is trusted and needs script/style/link tags to work
+      console.log('✅ Keeping original AI-generated code (not sanitizing)');
     } catch (validationError) {
       console.warn('Validation error (non-blocking):', validationError.message);
     }

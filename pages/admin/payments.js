@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import AdminLayout from '../../components/AdminLayout';
 import TabNavigation from '../../components/admin/TabNavigation';
+import { useToast } from '../../contexts/ToastContext';
+import ConfirmDialog from '../../components/ui/ConfirmDialog';
 
 export default function PaymentsManagement() {
   const [plans, setPlans] = useState([]);
@@ -8,6 +10,15 @@ export default function PaymentsManagement() {
   const [generatingLinks, setGeneratingLinks] = useState({});
   const [checkoutLinks, setCheckoutLinks] = useState({});
   const [error, setError] = useState('');
+  const [confirmDialog, setConfirmDialog] = useState({ isOpen: false, data: null });
+  const toast = useToast();
+
+  // Sync subscriptions state
+  const [syncing, setSyncing] = useState(false);
+  const [syncResult, setSyncResult] = useState(null);
+  const [verifyEmail, setVerifyEmail] = useState('');
+  const [verifying, setVerifying] = useState(false);
+  const [verifyResult, setVerifyResult] = useState(null);
 
   useEffect(() => {
     fetchPlans();
@@ -33,20 +44,23 @@ export default function PaymentsManagement() {
     }
   };
 
-  const deletePlan = async (id) => {
-    if (!confirm('Are you sure you want to delete this plan?')) return;
+  const confirmDeletePlan = (id) => {
+    setConfirmDialog({ isOpen: true, data: id });
+  };
 
+  const deletePlan = async (id) => {
     try {
       const response = await fetch(`/api/plans/${id}`, { method: 'DELETE' });
       const data = await response.json();
 
       if (response.ok) {
         setPlans(plans.filter(plan => plan.id !== id));
+        toast.success('Plan deleted successfully');
       } else {
-        alert(data.error || 'Failed to delete plan');
+        toast.error(data.error || 'Failed to delete plan');
       }
     } catch (error) {
-      alert('Failed to delete plan');
+      toast.error('Failed to delete plan');
     }
   };
 
@@ -62,11 +76,12 @@ export default function PaymentsManagement() {
           ...prev,
           [planId]: data.checkout_url
         }));
+        toast.success('Checkout link generated');
       } else {
-        alert(data.error || 'Failed to generate checkout link');
+        toast.error(data.error || 'Failed to generate checkout link');
       }
     } catch (error) {
-      alert('Network error occurred');
+      toast.error('Network error occurred');
     } finally {
       setGeneratingLinks(prev => ({ ...prev, [planId]: false }));
     }
@@ -74,7 +89,7 @@ export default function PaymentsManagement() {
 
   const copyToClipboard = (text) => {
     navigator.clipboard.writeText(text).then(() => {
-      alert('Link copied to clipboard!');
+      toast.success('Link copied to clipboard');
     });
   };
 
@@ -243,7 +258,7 @@ export default function PaymentsManagement() {
                           </a>
                           {plan.name !== 'free' && (
                             <button
-                              onClick={() => deletePlan(plan.id)}
+                              onClick={() => confirmDeletePlan(plan.id)}
                               className="text-red-400 hover:text-red-300 transition-colors"
                             >
                               Delete
@@ -420,6 +435,237 @@ export default function PaymentsManagement() {
     );
   };
 
+  // Sync Subscriptions functions
+  const syncSubscriptions = async () => {
+    setSyncing(true);
+    setSyncResult(null);
+    try {
+      const response = await fetch('/api/admin/lemonsqueezy/sync-subscriptions', {
+        method: 'POST'
+      });
+      const data = await response.json();
+
+      if (data.success) {
+        setSyncResult({
+          success: true,
+          message: data.message,
+          results: data.results
+        });
+      } else {
+        setSyncResult({
+          success: false,
+          message: data.error || 'Sync failed'
+        });
+      }
+    } catch (error) {
+      setSyncResult({
+        success: false,
+        message: 'Failed to connect to server'
+      });
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  const verifySubscription = async (e) => {
+    e.preventDefault();
+    if (!verifyEmail.trim()) return;
+
+    setVerifying(true);
+    setVerifyResult(null);
+    try {
+      const response = await fetch('/api/admin/lemonsqueezy/verify-subscription', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: verifyEmail })
+      });
+      const data = await response.json();
+
+      setVerifyResult(data);
+    } catch (error) {
+      setVerifyResult({
+        success: false,
+        error: 'Failed to verify subscription'
+      });
+    } finally {
+      setVerifying(false);
+    }
+  };
+
+  // Sync Subscriptions Component
+  const SyncSubscriptions = () => {
+    return (
+      <div className="p-6 space-y-6">
+        <div>
+          <h1 className="text-3xl font-bold text-slate-100 mb-2">Subscription Sync</h1>
+          <p className="text-slate-400">
+            Sync subscription data from LemonSqueezy API to verify and update user subscription statuses without relying on webhooks.
+          </p>
+        </div>
+
+        {/* Sync All Subscriptions */}
+        <div className="bg-slate-800 border border-slate-700 rounded-xl shadow-xl p-6">
+          <h3 className="text-lg font-semibold text-slate-200 mb-4">Sync All Subscriptions</h3>
+          <p className="text-sm text-slate-400 mb-4">
+            Fetch all subscriptions from LemonSqueezy and update user statuses in the database.
+            This is useful if webhooks failed or you need to reconcile data.
+          </p>
+
+          <button
+            onClick={syncSubscriptions}
+            disabled={syncing}
+            className="px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50 flex items-center gap-2"
+          >
+            {syncing ? (
+              <>
+                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                Syncing...
+              </>
+            ) : (
+              <>
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                Sync Now
+              </>
+            )}
+          </button>
+
+          {syncResult && (
+            <div className={`mt-4 p-4 rounded-lg ${syncResult.success ? 'bg-emerald-900/20 border border-emerald-600/30' : 'bg-red-900/20 border border-red-600/30'}`}>
+              <p className={syncResult.success ? 'text-emerald-300' : 'text-red-300'}>
+                {syncResult.message}
+              </p>
+              {syncResult.results && (
+                <div className="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
+                  <div className="bg-slate-800/50 rounded p-3">
+                    <div className="text-slate-400">Processed</div>
+                    <div className="text-xl font-semibold text-slate-200">{syncResult.results.processed}</div>
+                  </div>
+                  <div className="bg-slate-800/50 rounded p-3">
+                    <div className="text-slate-400">Updated</div>
+                    <div className="text-xl font-semibold text-emerald-400">{syncResult.results.updated}</div>
+                  </div>
+                  <div className="bg-slate-800/50 rounded p-3">
+                    <div className="text-slate-400">Skipped</div>
+                    <div className="text-xl font-semibold text-slate-300">{syncResult.results.skipped}</div>
+                  </div>
+                  <div className="bg-slate-800/50 rounded p-3">
+                    <div className="text-slate-400">Errors</div>
+                    <div className="text-xl font-semibold text-red-400">{syncResult.results.errors?.length || 0}</div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Verify Single Subscription */}
+        <div className="bg-slate-800 border border-slate-700 rounded-xl shadow-xl p-6">
+          <h3 className="text-lg font-semibold text-slate-200 mb-4">Verify Single Subscription</h3>
+          <p className="text-sm text-slate-400 mb-4">
+            Check subscription status for a specific user by their email address.
+          </p>
+
+          <form onSubmit={verifySubscription} className="flex gap-3">
+            <input
+              type="email"
+              value={verifyEmail}
+              onChange={(e) => setVerifyEmail(e.target.value)}
+              placeholder="user@example.com"
+              className="flex-1 px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+            />
+            <button
+              type="submit"
+              disabled={verifying || !verifyEmail.trim()}
+              className="px-6 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50"
+            >
+              {verifying ? 'Verifying...' : 'Verify'}
+            </button>
+          </form>
+
+          {verifyResult && (
+            <div className={`mt-4 p-4 rounded-lg ${verifyResult.hasActiveSubscription ? 'bg-emerald-900/20 border border-emerald-600/30' : 'bg-yellow-900/20 border border-yellow-600/30'}`}>
+              <div className="flex items-center gap-2 mb-3">
+                {verifyResult.hasActiveSubscription ? (
+                  <>
+                    <svg className="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                    <span className="text-emerald-300 font-medium">Active Subscription Found</span>
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-5 h-5 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                    </svg>
+                    <span className="text-yellow-300 font-medium">No Active Subscription</span>
+                  </>
+                )}
+              </div>
+
+              {verifyResult.subscriptions && verifyResult.subscriptions.length > 0 && (
+                <div className="space-y-2">
+                  {verifyResult.subscriptions.map((sub, idx) => (
+                    <div key={idx} className="bg-slate-800/50 rounded p-3 text-sm">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <div className="text-slate-200 font-medium">{sub.productName}</div>
+                          <div className="text-slate-400">{sub.variantName}</div>
+                        </div>
+                        <span className={`px-2 py-1 rounded text-xs font-medium ${
+                          sub.status === 'active' ? 'bg-emerald-600/20 text-emerald-300' :
+                          sub.status === 'on_trial' ? 'bg-blue-600/20 text-blue-300' :
+                          'bg-slate-600/20 text-slate-300'
+                        }`}>
+                          {sub.statusFormatted || sub.status}
+                        </span>
+                      </div>
+                      {sub.renewsAt && (
+                        <div className="text-slate-500 text-xs mt-1">
+                          Renews: {new Date(sub.renewsAt).toLocaleDateString()}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {verifyResult.error && (
+                <p className="text-red-300">{verifyResult.error}</p>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Info Card */}
+        <div className="bg-emerald-900/20 border border-emerald-600/30 rounded-xl p-6">
+          <div className="flex">
+            <div className="flex-shrink-0">
+              <svg className="h-6 w-6 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+            <div className="ml-3">
+              <h3 className="text-lg font-semibold text-emerald-300 mb-2">
+                API-Based Verification
+              </h3>
+              <div className="text-emerald-200/80 space-y-2">
+                <p>This feature uses the LemonSqueezy API to verify subscriptions directly, providing an alternative to webhook-based verification:</p>
+                <ul className="list-disc list-inside space-y-1 ml-2">
+                  <li>Use "Sync All" to batch update all subscription statuses</li>
+                  <li>Use "Verify" to check a specific user's subscription status</li>
+                  <li>Matches users by their email address in both systems</li>
+                  <li>Requires LEMONSQUEEZY_API_KEY environment variable</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   const tabs = [
     {
       label: 'Plans',
@@ -430,6 +676,11 @@ export default function PaymentsManagement() {
       label: 'Checkout Links',
       icon: '🔗',
       content: <CheckoutLinks />
+    },
+    {
+      label: 'Sync Subscriptions',
+      icon: '🔄',
+      content: <SyncSubscriptions />
     }
   ];
 
@@ -440,9 +691,23 @@ export default function PaymentsManagement() {
           <h1 className="text-4xl font-bold text-slate-100 mb-2">Payments Management</h1>
           <p className="text-slate-400">Manage subscription plans and checkout links in one place</p>
         </div>
-        
+
         <TabNavigation tabs={tabs} />
       </div>
+
+      {/* Confirm Dialog */}
+      <ConfirmDialog
+        isOpen={confirmDialog.isOpen}
+        onClose={() => setConfirmDialog({ isOpen: false, data: null })}
+        onConfirm={() => {
+          deletePlan(confirmDialog.data);
+          setConfirmDialog({ isOpen: false, data: null });
+        }}
+        title="Delete Plan"
+        message="Are you sure you want to delete this plan? This action cannot be undone."
+        confirmText="Delete"
+        variant="danger"
+      />
     </AdminLayout>
   );
 }

@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react';
 import AdminLayout from '../../components/AdminLayout';
+import { useToast } from '../../contexts/ToastContext';
 
 export default function CheckoutLinksManager() {
   const [plans, setPlans] = useState([]);
   const [loading, setLoading] = useState(true);
   const [generatingLinks, setGeneratingLinks] = useState({});
   const [checkoutLinks, setCheckoutLinks] = useState({});
+  const toast = useToast();
 
   useEffect(() => {
     fetchPlans();
@@ -35,15 +37,16 @@ export default function CheckoutLinksManager() {
       const data = await response.json();
       
       if (response.ok) {
-        setCheckoutLinks(prev => ({ 
-          ...prev, 
-          [planId]: data.checkout_url 
+        setCheckoutLinks(prev => ({
+          ...prev,
+          [planId]: data.checkout_url
         }));
+        toast.success('Checkout link generated');
       } else {
-        alert(data.error || 'Failed to generate checkout link');
+        toast.error(data.error || 'Failed to generate checkout link');
       }
     } catch (error) {
-      alert('Network error occurred');
+      toast.error('Network error occurred');
     } finally {
       setGeneratingLinks(prev => ({ ...prev, [planId]: false }));
     }
@@ -51,7 +54,7 @@ export default function CheckoutLinksManager() {
 
   const copyToClipboard = (text) => {
     navigator.clipboard.writeText(text).then(() => {
-      alert('Link copied to clipboard!');
+      toast.success('Link copied to clipboard');
     });
   };
 

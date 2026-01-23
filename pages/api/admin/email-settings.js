@@ -14,13 +14,14 @@ async function handler(req, res) {
 async function getEmailSettings(req, res) {
   try {
     const settings = await emailService.getEmailSettings();
-    
-    // Don't send API key in response for security
+
+    // Don't send API keys in response for security
     const safeSettings = {
       ...settings,
-      resend_api_key: settings.resend_api_key ? '••••••••••••••••••••••••••••' : ''
+      resend_api_key: settings.resend_api_key ? '••••••••••••••••••••••••••••' : '',
+      email_list_api_key: settings.email_list_api_key ? '••••••••••••••••••••••••••••' : ''
     };
-    
+
     res.status(200).json({ settings: safeSettings });
   } catch (error) {
     console.error('Error fetching email settings:', error);
@@ -30,7 +31,7 @@ async function getEmailSettings(req, res) {
 
 async function updateEmailSettings(req, res) {
   try {
-    const { admin_email, from_email, from_name, resend_api_key, email_notifications } = req.body;
+    const { admin_email, from_email, from_name, resend_api_key, email_notifications, email_list_api_key, support_reply_notifications } = req.body;
 
     // Fetch existing settings to allow partial updates
     const existingSettings = await emailService.getEmailSettings();
@@ -42,7 +43,10 @@ async function updateEmailSettings(req, res) {
       from_name: from_name || existingSettings.from_name,
       email_notifications: email_notifications !== undefined
         ? Boolean(email_notifications)
-        : existingSettings.email_notifications
+        : existingSettings.email_notifications,
+      support_reply_notifications: support_reply_notifications !== undefined
+        ? Boolean(support_reply_notifications)
+        : existingSettings.support_reply_notifications
     };
 
     // Validate merged settings have required fields
@@ -50,13 +54,17 @@ async function updateEmailSettings(req, res) {
       return res.status(400).json({ error: 'Admin email, from email, and from name are required' });
     }
 
-    // Only update API key if provided and not masked
+    // Only update API keys if provided and not masked
     if (resend_api_key && !resend_api_key.includes('••••')) {
       settings.resend_api_key = resend_api_key;
     }
 
+    if (email_list_api_key && !email_list_api_key.includes('••••')) {
+      settings.email_list_api_key = email_list_api_key;
+    }
+
     const updated = await emailService.updateEmailSettings(settings);
-    
+
     if (updated) {
       res.status(200).json({ message: 'Email settings updated successfully' });
     } else {

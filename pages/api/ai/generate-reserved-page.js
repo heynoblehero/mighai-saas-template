@@ -3,20 +3,25 @@ import path from 'path';
 import { withAdminAuth } from '../../../lib/auth-middleware';
 import AIProviderService from '../../../services/ai-provider.js';
 import { quickValidate, generateValidationReport } from '../../../lib/ai-code-validator.js';
-import { saveConversation, addMessage } from '../../../lib/ai-conversation-init.js';
+import { saveConversation, addMessage, getConversation, initializeAIConversationTables } from '../../../lib/ai-conversation-init.js';
+import {
+  detectDesignStyle,
+  generateStyleSection,
+  MINIMAL_SYSTEM_PROMPT
+} from '../../../lib/ai-prompt-utils.js';
 import crypto from 'crypto';
-import db from '../../../lib/database';
 
 const SETTINGS_FILE = path.join(process.cwd(), 'data', 'ai-settings.json');
 const RULES_FILE = path.join(process.cwd(), 'data', 'reserved-page-rules.json');
 const CONTEXT_FILE = path.join(process.cwd(), 'data', 'ai-context.json');
-const COMPONENTS_FILE = path.join(process.cwd(), 'data', 'reserved-components-context.json');
+
+// Initialize conversation tables
+initializeAIConversationTables();
 
 function getSettings() {
   try {
     if (fs.existsSync(SETTINGS_FILE)) {
-      const data = fs.readFileSync(SETTINGS_FILE, 'utf8');
-      return JSON.parse(data);
+      return JSON.parse(fs.readFileSync(SETTINGS_FILE, 'utf8'));
     }
     return null;
   } catch (error) {
@@ -28,8 +33,7 @@ function getSettings() {
 function getRules() {
   try {
     if (fs.existsSync(RULES_FILE)) {
-      const data = fs.readFileSync(RULES_FILE, 'utf8');
-      return JSON.parse(data);
+      return JSON.parse(fs.readFileSync(RULES_FILE, 'utf8'));
     }
     return {};
   } catch (error) {
@@ -41,8 +45,7 @@ function getRules() {
 function getContext() {
   try {
     if (fs.existsSync(CONTEXT_FILE)) {
-      const data = fs.readFileSync(CONTEXT_FILE, 'utf8');
-      return JSON.parse(data);
+      return JSON.parse(fs.readFileSync(CONTEXT_FILE, 'utf8'));
     }
     return {};
   } catch (error) {
@@ -51,222 +54,122 @@ function getContext() {
   }
 }
 
-function getComponentContext() {
-  try {
-    if (fs.existsSync(COMPONENTS_FILE)) {
-      const data = fs.readFileSync(COMPONENTS_FILE, 'utf8');
-      return JSON.parse(data);
-    }
-    return {};
-  } catch (error) {
-    console.error('Error reading component context:', error);
-    return {};
-  }
-}
-
 function trackUsage(tokensUsed, estimatedCost, model = null, provider = null) {
-  try {
-    const month = new Date().toISOString().slice(0, 7);
-
-    db.run(`INSERT INTO ai_usage_logs (tokens_used, estimated_cost, usage_type, model, provider, month)
-            VALUES (?, ?, ?, ?, ?, ?)`,
-      [tokensUsed, estimatedCost, 'reserved-page-generation', model, provider, month],
-      function(err) {
-        if (err) {
-          console.error('Error tracking usage in database:', err);
-        } else {
-          console.log('✅ Usage tracked in database with ID:', this.lastID);
-        }
-      });
-  } catch (error) {
-    console.error('Error tracking usage:', error);
-  }
+  console.log('📊 Usage tracked:', { tokensUsed, estimatedCost, model, provider });
 }
 
-function generateReservedPagePrompt(pageType, rules, userPrompt, existingCode = '', aiContext = {}, componentContext = {}, layoutAnalysis = null) {
-  const pageRules = rules[pageType];
-  if (!pageRules) {
-    throw new Error(`No rules found for page type: ${pageType}`);
+/**
+ * Ensure the generated HTML is complete with all required elements
+ */
+function ensureCompleteHTML(html, pageTitle = 'Page') {
+  const hasDoctype = html.toLowerCase().includes('<!doctype html');
+  const hasTailwindCDN = html.includes('cdn.tailwindcss.com');
+  const hasStyleBlock = html.includes('<style');
+
+  if (hasDoctype && hasTailwindCDN && hasStyleBlock) {
+    return html;
   }
 
-  const pageContext = aiContext.required_functions?.[pageType] || {};
+  console.log('⚠️ Generated HTML is incomplete, wrapping in proper structure...');
+
+  let bodyContent = html;
+  const bodyMatch = html.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
+  if (bodyMatch) {
+    bodyContent = bodyMatch[1];
+  }
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>${pageTitle}</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        :root {
+            --primary: #10B981;
+            --secondary: #059669;
+            --accent: #34D399;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            line-height: 1.6;
+        }
+    </style>
+</head>
+<body class="min-h-screen">
+    ${bodyContent}
+</body>
+</html>`;
+}
+
+/**
+ * Generate system prompt for reserved pages
+ * Simplified - only includes essential requirements, not style restrictions
+ */
+function generateSystemPrompt(pageType, rules, aiContext) {
+  const pageRules = rules[pageType];
+  if (!pageRules) return MINIMAL_SYSTEM_PROMPT;
+
   const routes = aiContext.routes || {};
   const apis = aiContext.api_endpoints || {};
-  const utilities = aiContext.common_utilities || {};
 
-  // Component context
-  const layoutType = pageRules.layout_type || 'standalone';
-  const layoutSystem = componentContext.layout_system?.[layoutType];
-  const reservedComponents = componentContext.reserved_components || {};
-  const minimalRequirements = componentContext.minimal_functionality_requirements || {};
-  const adminRestrictions = componentContext.admin_restrictions || {};
-
-  let prompt = `You are an expert web developer creating a ${pageRules.name}.
-
-CRITICAL REQUIREMENTS - YOU MUST FOLLOW THESE EXACTLY:
+  let systemPrompt = `You are an expert web developer creating a ${pageRules.name}.
 
 ## Page Description:
 ${pageRules.description}
 
-${layoutAnalysis ? `## LAYOUT REFERENCE (from uploaded image):
-${layoutAnalysis}
+## REQUIRED HTML ELEMENTS (must include):`;
 
-USE THIS LAYOUT AS INSPIRATION for the visual design, colors, spacing, and overall aesthetic. Adapt it to fit the required functionality below.
-` : ''}
-
-## LAYOUT SYSTEM:
-${layoutType === 'subscriber_layout' ? `
-This page MUST use the subscriber layout system:
-- Layout Structure: ${layoutSystem ? JSON.stringify(layoutSystem.structure, null, 2) : 'Standard subscriber layout'}
-- Protected Components: Sidebar navigation and support chat widget are AUTOMATICALLY INCLUDED
-- Content Area: Only generate content for the main content area (${pageRules.content_area || 'main content'})
-- Responsive Behavior: Layout handles responsive design automatically
-` : 'Standalone page - full HTML structure required'}
-
-## COMPONENT RESTRICTIONS:
-${adminRestrictions.cannot_edit ? Object.entries(adminRestrictions.cannot_edit).map(([key, desc]) => 
-  `- CANNOT MODIFY: ${key} - ${desc}`).join('\n') : ''}
-
-${adminRestrictions.can_edit ? `
-Customizable Elements:
-${Object.entries(adminRestrictions.can_edit).map(([key, desc]) => 
-  `- CAN CUSTOMIZE: ${key} - ${desc}`).join('\n')}` : ''}
-
-## MINIMAL FUNCTIONALITY REQUIREMENTS:
-${pageRules.required_elements?.filter(el => el.minimal_functionality).map(el => {
-  const requirement = minimalRequirements[el.minimal_functionality];
-  return requirement ? `- ${el.minimal_functionality}: ${requirement.description} (PROTECTION LEVEL: ${requirement.protection_level})` : '';
-}).filter(Boolean).join('\n') || 'No special minimal requirements'}
-
-## REQUIRED HTML ELEMENTS (MUST INCLUDE ALL):`;
-
-  pageRules.required_elements.forEach(element => {
-    prompt += `\n- ${element.type.toUpperCase()}`;
-    if (element.id) prompt += ` with id="${element.id}"`;
-    if (element.name) prompt += ` and name="${element.name}"`;
-    if (element.input_type) prompt += ` of type="${element.input_type}"`;
-    if (element.href) prompt += ` linking to "${element.href}"`;
-    if (element.required) prompt += ` (REQUIRED)`;
-    if (element.conditional) prompt += ` (only show when ${element.conditional})`;
-    prompt += `\n  Purpose: ${element.description}`;
+  pageRules.required_elements?.forEach(element => {
+    systemPrompt += `\n- ${element.type.toUpperCase()}`;
+    if (element.id) systemPrompt += ` id="${element.id}"`;
+    if (element.name) systemPrompt += ` name="${element.name}"`;
+    systemPrompt += `: ${element.description}`;
   });
 
-  prompt += `\n\n## AVAILABLE ROUTES (USE THESE EXACT PATHS):`;
+  systemPrompt += `\n\n## AVAILABLE ROUTES:`;
   if (routes.route_mappings) {
-    prompt += `\nRoute Mappings for Navigation:`;
     Object.entries(routes.route_mappings).forEach(([key, route]) => {
-      prompt += `\n- "${key}" maps to "${route}"`;
+      systemPrompt += `\n- "${key}" → "${route}"`;
     });
   }
-  
-  if (routes.subscriber) {
-    prompt += `\nSubscriber Routes: ${routes.subscriber.join(', ')}`;
-  }
-  
-  if (routes.public) {
-    prompt += `\nPublic Routes: ${routes.public.join(', ')}`;
-  }
 
-  prompt += `\n\n## VERIFIED API ENDPOINTS (THESE ACTUALLY EXIST):`;
+  systemPrompt += `\n\n## API ENDPOINTS:`;
   Object.entries(apis).forEach(([category, endpoints]) => {
-    prompt += `\n${category.toUpperCase()}:`;
     Object.entries(endpoints).forEach(([endpoint, config]) => {
-      prompt += `\n- ${config.method} ${endpoint}`;
-      if (config.required_fields) prompt += ` (fields: ${config.required_fields.join(', ')})`;
-      if (config.success_redirect) prompt += ` → ${config.success_redirect}`;
-      if (config.auth_required) prompt += ` [AUTH REQUIRED]`;
-      if (config.returns) prompt += ` Returns: ${config.returns}`;
+      systemPrompt += `\n- ${config.method} ${endpoint}`;
+      if (config.required_fields) systemPrompt += ` (fields: ${config.required_fields.join(', ')})`;
     });
   });
 
-  prompt += `\n\n## REQUIRED JAVASCRIPT FUNCTIONALITY (MUST IMPLEMENT ALL):`;
-
-  pageRules.required_functionality.forEach(func => {
-    prompt += `\n- ${func.name}(): ${func.description}`;
-    
-    // Add context-specific details if available
-    const funcContext = pageContext[func.name];
-    if (funcContext) {
-      if (funcContext.route_mapping) {
-        prompt += `\n  Route Mapping: ${JSON.stringify(funcContext.route_mapping)}`;
-      }
-      if (funcContext.populates) {
-        prompt += `\n  Updates Elements: ${funcContext.populates.join(', ')}`;
-      }
-      if (funcContext.parameters) {
-        prompt += `\n  Parameters: ${funcContext.parameters.join(', ')}`;
-      }
-    }
-    
-    if (func.api_endpoint) prompt += `\n  API: ${func.method} ${func.api_endpoint}`;
-    if (func.required_fields) prompt += `\n  Required fields: ${func.required_fields.join(', ')}`;
-    if (func.success_redirect) prompt += `\n  On success: redirect to ${func.success_redirect}`;
-    if (func.success_action) prompt += `\n  On success: ${func.success_action}`;
-    if (func.error_handling) prompt += `\n  Error handling: ${func.error_handling}`;
+  systemPrompt += `\n\n## REQUIRED JAVASCRIPT FUNCTIONS:`;
+  pageRules.required_functionality?.forEach(func => {
+    systemPrompt += `\n- ${func.name}(): ${func.description}`;
+    if (func.api_endpoint) systemPrompt += `\n  API: ${func.method} ${func.api_endpoint}`;
   });
 
-  prompt += `\n\n## UTILITY FUNCTIONS AVAILABLE:`;
-  Object.entries(utilities).forEach(([name, description]) => {
-    prompt += `\n- ${name}(): ${description}`;
-  });
+  systemPrompt += `\n\n## OUTPUT FORMAT:
+Generate a complete HTML document with:
+- <!DOCTYPE html>
+- Tailwind CSS CDN
+- All required elements and functions
+- Responsive design
 
-  prompt += `\n\n## STYLING REQUIREMENTS:`;
-  if (pageRules.styling_guidelines) {
-    pageRules.styling_guidelines.forEach(guideline => {
-      prompt += `\n- ${guideline}`;
-    });
-  }
+## DO NOT INCLUDE (already global):
+- Analytics tracking
+- Heatmap tracking
+- Support chat widget
 
-  prompt += `\n\n## USER CUSTOMIZATION REQUEST:
-${userPrompt}
+Follow the user's creative direction for styling. No markdown code blocks - just HTML.`;
 
-${existingCode ? `## EXISTING CODE TO MODIFY:\n${existingCode}` : ''}
-
-## CRITICAL RULES TO PREVENT ERRORS:
-1. **Navigation Functions**: Use EXACT route mappings provided above. For dashboard navigation, use the route_mapping object.
-2. **API Endpoints**: Only use the verified API endpoints listed above with correct methods and fields.
-3. **Function Definitions**: Include ALL required functions with exact names and functionality.
-4. **Element IDs**: Use the exact IDs specified in required_elements.
-5. **Error Prevention**: 
-   - Always define functions before using them in onclick handlers
-   - Use try-catch blocks around all API calls
-   - Validate all form inputs before submission
-   - Handle loading states properly
-6. **Route Validation**: Never hardcode routes - use the provided route mappings
-7. **Context Awareness**: The page will be injected with additional functionality - don't conflict with reserved-page-injector.js
-
-🔒 CRITICAL - MANDATORY PLATFORM FEATURES (NEVER REMOVE OR OVERRIDE):
-✓ Analytics & Heatmap: /analytics.js and /heatmap.js are automatically loaded globally via _app.js
-  - Provide page view tracking, click tracking, form tracking, A/B testing, heatmap recording
-  - Available via window.Analytics and window.HeatmapIntegration objects
-  - Do NOT add duplicate tracking code or custom analytics
-✓ Support Chat Widget: SupportWidget component is rendered globally on all pages via _app.js
-  - Provides customer support chat functionality
-  - Automatically visible based on admin settings (public or subscribers_only)
-  - Do NOT create conflicting chat widgets, floating buttons, or support forms
-✓ These are application-level features that work across ALL pages automatically
-✓ Focus on creating the page-specific functionality - platform features are already handled
-
-## FUNCTION IMPLEMENTATION REQUIREMENTS:
-- Define ALL functions in global scope or ensure they're accessible when called
-- Use proper error handling with user-friendly messages
-- Implement loading states for all async operations
-- Follow the exact API contracts specified above
-
-Generate ONLY the complete HTML code with inline CSS and JavaScript. Do not include markdown code blocks or explanations.
-
-The generated page MUST work as a drop-in replacement while preventing "function not defined" errors.`;
-
-  return prompt;
+  return systemPrompt;
 }
 
 async function handler(req, res) {
   console.log('🏠 Reserved Page Generation API called');
-  console.log('🏠 Method:', req.method);
-  console.log('🏠 Request body:', JSON.stringify(req.body, null, 2));
-  
+
   if (req.method !== 'POST') {
-    console.log('❌ Invalid method:', req.method);
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
@@ -276,316 +179,229 @@ async function handler(req, res) {
     context = '',
     iteration_type = 'new',
     layoutAnalysis,
-    // NEW: User-provided API key and provider
-    userApiKey,
-    provider: userProvider,
     conversationId
   } = req.body;
-  console.log('🏠 Extracted params:');
+
+  console.log('🏠 Request params:');
   console.log('  - pageType:', pageType);
-  console.log('  - prompt:', prompt);
-  console.log('  - context length:', context?.length || 0);
-  console.log('  - iteration_type:', iteration_type);
-  console.log('  - layoutAnalysis:', layoutAnalysis ? 'PROVIDED' : 'NONE');
-  console.log('  - userApiKey:', userApiKey ? 'PROVIDED' : 'NOT PROVIDED');
-  console.log('  - userProvider:', userProvider || 'NOT PROVIDED');
-  console.log('  - conversationId:', conversationId || 'NOT PROVIDED');
+  console.log('  - prompt:', prompt?.substring(0, 100) + '...');
+  console.log('  - conversationId:', conversationId || 'NEW');
 
   if (!pageType || !prompt) {
-    console.log('❌ Missing required parameters');
-    console.log('  - pageType provided:', !!pageType);
-    console.log('  - prompt provided:', !!prompt);
     return res.status(400).json({ error: 'pageType and prompt are required' });
   }
 
-  // Get AI settings
-  console.log('🏠 Loading AI settings from:', SETTINGS_FILE);
   const settings = getSettings() || {};
-  console.log('🏠 Settings loaded:', settings ? 'SUCCESS' : 'USING DEFAULTS');
 
-  // Determine which provider and API key to use
-  let provider;
-  let apiKey;
-  let usingUserKey = false;
-
-  if (userApiKey && userProvider) {
-    // Use user-provided API key and provider
-    provider = userProvider;
-    apiKey = userApiKey;
-    usingUserKey = true;
-    console.log('[Reserved Page] Using user-provided API key for provider:', provider);
-  } else {
-    // Fallback to server settings (backward compatibility)
-    if (!settings.ai_provider && !settings.gemini_api_key && !settings.claude_api_key && !settings.openai_api_key) {
-      return res.status(400).json({
-        error: 'API key required. Please configure your API key in the settings modal.'
-      });
-    }
-
-    provider = settings.ai_provider || 'gemini';
-
-    // Validate provider-specific API key exists
-    const providerKeys = {
-      'gemini': 'gemini_api_key',
-      'claude': 'claude_api_key',
-      'openai': 'openai_api_key'
-    };
-
-    const requiredKey = providerKeys[provider];
-    if (!settings[requiredKey]) {
-      console.log(`❌ ${provider} API key not configured in server settings`);
-      return res.status(400).json({
-        error: `${provider.toUpperCase()} API key not configured. Please set up your API key in settings.`
-      });
-    }
-
-    apiKey = settings[requiredKey];
-    console.log('[Reserved Page] Using server API key for provider:', provider);
-  }
-
-  console.log('🏠 Using AI provider:', provider);
-  console.log('🏠 Max tokens:', settings.max_tokens || 8192);
-  console.log('🏠 Temperature:', settings.temperature || 0.7);
-
-  // Get page rules and context
-  console.log('🏠 Loading page rules from:', RULES_FILE);
-  const rules = getRules();
-  console.log('🏠 Available page types:', Object.keys(rules));
-  
-  console.log('🏠 Loading AI context from:', CONTEXT_FILE);
-  const aiContext = getContext();
-  console.log('🏠 AI context loaded:', Object.keys(aiContext));
-  
-  console.log('🏠 Loading component context from:', COMPONENTS_FILE);
-  const componentContext = getComponentContext();
-  console.log('🏠 Component context loaded:', Object.keys(componentContext));
-  
-  console.log(`🏠 Requested pageType: ${pageType}`);
-  console.log('🏠 Available rule types:', Object.keys(rules));
-  
-  if (!rules[pageType]) {
-    console.error(`❌ Unknown page type: ${pageType}. Available types: ${Object.keys(rules).join(', ')}`);
-    return res.status(400).json({ 
-      error: `Unknown page type: ${pageType}`, 
-      availableTypes: Object.keys(rules),
-      requestedType: pageType 
+  if (!settings.claude_api_key) {
+    return res.status(400).json({
+      error: 'Claude API key not configured. Please configure your API key in Settings > AI Settings.'
     });
   }
-  
-  console.log('🏠 Page type rules found:', rules[pageType]?.name);
+
+  const rules = getRules();
+  const aiContext = getContext();
+
+  if (!rules[pageType]) {
+    return res.status(400).json({
+      error: `Unknown page type: ${pageType}`,
+      availableTypes: Object.keys(rules)
+    });
+  }
 
   try {
     // Check cost limits
-    const currentMonth = new Date().toISOString().slice(0, 7);
-    console.log('🏠 Cost check:');
-    console.log('  - Current month:', currentMonth);
-    console.log('  - Monthly usage: $', settings.current_month_usage);
-    console.log('  - Cost limit: $', settings.cost_limit_monthly);
-    
     if (settings.current_month_usage >= settings.cost_limit_monthly) {
-      console.log('❌ Monthly cost limit exceeded');
-      return res.status(400).json({ 
-        error: `Monthly cost limit of $${settings.cost_limit_monthly} reached. Current usage: $${settings.current_month_usage}` 
+      return res.status(400).json({
+        error: `Monthly cost limit of $${settings.cost_limit_monthly} reached.`
       });
     }
 
-    // Generate the specialized prompt for this page type
-    console.log('🏠 Generating specialized prompt for page type:', pageType);
-    const finalPrompt = generateReservedPagePrompt(pageType, rules, prompt, context, aiContext, componentContext, layoutAnalysis);
-    console.log('🏠 Generated prompt length:', finalPrompt.length);
-    console.log('🏠 First 200 chars of prompt:', finalPrompt.substring(0, 200) + '...');
-    if (layoutAnalysis) {
-      console.log('🏠 Layout analysis included in prompt');
+    // ============ CONVERSATION HISTORY ============
+    let conversationHistory = [];
+    const finalConversationId = conversationId || `conv_${crypto.randomBytes(16).toString('hex')}`;
+
+    // Retrieve existing conversation history if conversationId provided
+    if (conversationId) {
+      console.log('📜 Retrieving conversation history for:', conversationId);
+      const existingConversation = getConversation(conversationId);
+
+      if (existingConversation && existingConversation.messages) {
+        conversationHistory = existingConversation.messages.map(msg => ({
+          role: msg.role,
+          content: msg.content
+        }));
+        console.log(`📜 Found ${conversationHistory.length} previous messages`);
+      }
     }
 
-    // Call AI provider service with appropriate API key
-    console.log('🏠 Calling AI provider service...');
-    const providerSettings = {
-      ...settings,
-      ai_provider: provider,
-      [`${provider}_api_key`]: apiKey,
-      max_tokens: settings.max_tokens || 8192,
-      temperature: settings.temperature || 0.7
-    };
-    const aiProvider = new AIProviderService(providerSettings);
-    const result = await aiProvider.generate(finalPrompt, {
-      maxTokens: providerSettings.max_tokens,
-      temperature: providerSettings.temperature
-    });
+    // ============ BUILD PROMPTS ============
+    // System prompt with page requirements (simplified)
+    const systemPrompt = generateSystemPrompt(pageType, rules, aiContext);
 
-    const generatedCode = result.content;
+    // Style hint (suggestion only)
+    const styleDetection = detectDesignStyle(prompt, {
+      site_name: aiContext.site_name,
+      site_description: aiContext.site_description
+    });
+    const styleHint = generateStyleSection(styleDetection);
+    console.log('🎨 Style suggestion:', styleDetection.style, '(hint only)');
+
+    // Build user prompt
+    let userPrompt = prompt;
+
+    // Include layout analysis if provided
+    if (layoutAnalysis) {
+      userPrompt = `Layout reference from image:\n${layoutAnalysis}\n\nUser request: ${prompt}`;
+    }
+
+    // If modifying existing code, include it
+    if (iteration_type === 'modify' && context) {
+      userPrompt = `Here is the current page code:
+
+${context}
+
+Please modify it based on this request: ${prompt}
+
+Keep all previous changes and only modify what I'm asking for.`;
+    }
+
+    // Add style hint at the end
+    userPrompt += `\n\n${styleHint}`;
+
+    // ============ GENERATE WITH HISTORY ============
+    console.log('🏠 Calling AI with conversation history...');
+    const aiProvider = new AIProviderService(settings);
+
+    const result = await aiProvider.generateWithHistory(
+      systemPrompt,
+      conversationHistory,
+      userPrompt,
+      {
+        maxTokens: settings.max_tokens || 16384,
+        temperature: settings.temperature || 0.7
+      }
+    );
+
+    let generatedCode = result.content;
     const tokensUsed = result.tokens_used;
     const estimatedCost = result.estimated_cost;
-    
-    console.log('🏠 Generation results:');
-    console.log('  - Generated code length:', generatedCode.length);
-    console.log('  - Tokens used:', tokensUsed);
-    console.log('  - Input tokens:', result.input_tokens || 0);
-    console.log('  - Estimated cost: $', estimatedCost);
-    console.log('  - Provider:', result.provider);
 
-    // ============ VALIDATION PIPELINE ============
-    console.log('🔒 Running validation pipeline for reserved page...');
+    console.log('🏠 Generation complete:', generatedCode.length, 'chars');
+
+    // Clean up markdown if present
+    if (generatedCode.includes('```html')) {
+      const match = generatedCode.match(/```html\n?([\s\S]*?)\n?```/);
+      if (match) generatedCode = match[1];
+    } else if (generatedCode.includes('```')) {
+      const match = generatedCode.match(/```\n?([\s\S]*?)\n?```/);
+      if (match) generatedCode = match[1];
+    }
+
+    // Ensure complete HTML structure
+    const pageTitle = rules[pageType]?.name || 'Page';
+    generatedCode = ensureCompleteHTML(generatedCode.trim(), pageTitle);
+
+    // ============ VALIDATION (permissive) ============
     let validationResult;
-    let sanitizedCode = generatedCode;
     try {
       validationResult = await quickValidate({
         html: generatedCode,
-        css: '', // Reserved pages have CSS inline in HTML
-        js: '', // Reserved pages have JS inline in HTML
+        css: '',
+        js: '',
         mode: 'permissive'
       });
-
-      console.log('🔒 Validation complete:');
-      console.log('  - Valid:', validationResult.valid);
-      console.log('  - Errors:', validationResult.errors.length);
-      console.log('  - Warnings:', validationResult.warnings.length);
-      console.log('  - Processing time:', validationResult.processingTime + 'ms');
-
-      // Use sanitized code
-      if (validationResult.sanitizedCode && validationResult.sanitizedCode.html) {
-        sanitizedCode = validationResult.sanitizedCode.html;
-        console.log('✅ Using sanitized code');
-      }
-
-      // Log validation report
-      if (validationResult.errors.length > 0 || validationResult.warnings.length > 0) {
-        const report = generateValidationReport(validationResult);
-        console.log('\n' + report + '\n');
-      }
+      console.log('🔒 Validation:', validationResult.valid ? 'passed' : 'warnings');
     } catch (validationError) {
-      console.error('⚠️ Validation error (non-blocking):', validationError.message);
-      validationResult = {
-        valid: true,
-        errors: [],
-        warnings: [`Validation skipped: ${validationError.message}`],
-        sanitizedCode: { html: generatedCode, css: '', js: '' }
-      };
-    }
-    // ============================================
-
-    // Track usage (only for server keys, not user keys)
-    if (!usingUserKey) {
-      console.log('🏠 Tracking server usage...');
-      trackUsage(tokensUsed, estimatedCost, result.model, result.provider);
-
-      // Update monthly usage in settings
-      const newMonthlyUsage = (settings.current_month_usage || 0) + estimatedCost;
-      settings.current_month_usage = newMonthlyUsage;
-      console.log('🏠 Updated monthly usage to: $', newMonthlyUsage);
-
-      try {
-        fs.writeFileSync(SETTINGS_FILE, JSON.stringify(settings, null, 2));
-        console.log('✅ Settings file updated successfully');
-      } catch (error) {
-        console.error('❌ Failed to update settings file:', error);
-      }
-    } else {
-      console.log('🏠 Skipping usage tracking (using user-provided API key)');
+      console.warn('⚠️ Validation skipped:', validationError.message);
+      validationResult = { valid: true, errors: [], warnings: [] };
     }
 
-    // ============ CONVERSATION PERSISTENCE ============
-    // Generate or use provided conversation ID
-    const finalConversationId = conversationId || `conv_${crypto.randomBytes(16).toString('hex')}`;
+    // Track usage
+    trackUsage(tokensUsed, estimatedCost, result.model, result.provider);
 
-    // Save conversation to database
+    // Update monthly usage
+    const newMonthlyUsage = (settings.current_month_usage || 0) + estimatedCost;
+    settings.current_month_usage = newMonthlyUsage;
+    try {
+      fs.writeFileSync(SETTINGS_FILE, JSON.stringify(settings, null, 2));
+    } catch (error) {
+      console.error('Failed to update settings:', error);
+    }
+
+    // ============ SAVE CONVERSATION ============
     try {
       await saveConversation({
         conversationId: finalConversationId,
         userId: req.session?.user?.id || null,
         title: `${rules[pageType].name}: ${prompt.substring(0, 100)}`,
-        provider: provider,
+        provider: 'claude',
         metadata: {
           pageType,
-          generatedCode: sanitizedCode,
-          validation: validationResult,
+          generatedCode,
           layoutAnalysis,
-          usingUserKey,
           iteration_type
         }
       });
 
-      // Add user message
       await addMessage({
         conversationId: finalConversationId,
         role: 'user',
-        content: prompt,
-        metadata: { pageType, iteration_type, layoutAnalysis: layoutAnalysis ? 'provided' : null }
+        content: userPrompt,
+        metadata: { pageType, iteration_type }
       });
 
-      // Add assistant message
       await addMessage({
         conversationId: finalConversationId,
         role: 'assistant',
-        content: sanitizedCode,
-        metadata: {
-          code: { html: sanitizedCode },
-          tokens: { used: tokensUsed, cost: estimatedCost }
-        }
+        content: generatedCode,
+        metadata: { code: { html: generatedCode }, tokens: tokensUsed }
       });
 
-      console.log(`✅ Conversation ${finalConversationId} saved to database`);
+      console.log(`✅ Conversation ${finalConversationId} saved`);
     } catch (convError) {
-      console.error('⚠️ Error saving conversation (non-blocking):', convError);
+      console.error('⚠️ Error saving conversation:', convError);
     }
-    // ================================================
 
-    const responseData = {
+    // ============ RESPONSE ============
+    res.status(200).json({
       success: true,
       conversationId: finalConversationId,
-      html_code: sanitizedCode,
+      html_code: generatedCode,
       page_type: pageType,
       tokens_used: tokensUsed,
       estimated_cost: estimatedCost,
-      monthly_usage: usingUserKey ? 0 : settings.current_month_usage,
+      monthly_usage: settings.current_month_usage,
       iteration_type,
       rules_applied: rules[pageType].name,
       provider: result.provider,
       model: result.model,
-      usingUserKey,
       validation: {
         valid: validationResult?.valid || true,
         errors: validationResult?.errors || [],
-        warnings: validationResult?.warnings || [],
-        processingTime: validationResult?.processingTime || 0
+        warnings: validationResult?.warnings || []
       }
-    };
-    
-    console.log('✅ Sending successful response:');
-    console.log('  - success:', responseData.success);
-    console.log('  - page_type:', responseData.page_type);
-    console.log('  - html_code length:', responseData.html_code.length);
-    console.log('  - tokens_used:', responseData.tokens_used);
-    console.log('  - estimated_cost:', responseData.estimated_cost);
-    console.log('  - rules_applied:', responseData.rules_applied);
-    
-    res.status(200).json(responseData);
+    });
 
   } catch (error) {
     console.error('❌ Reserved page generation failed:', error);
-    console.error('❌ Error stack:', error.stack);
-    console.error('❌ Error message:', error.message);
-    console.error('❌ Error type:', error.constructor.name);
 
-    // Check for API key authentication errors
-    if (error.status === 401 || error.message?.includes('invalid_api_key') || error.message?.includes('authentication') || error.message?.includes('API key')) {
+    if (error.status === 401 || error.message?.includes('invalid_api_key')) {
       return res.status(401).json({
         error: 'Invalid API key',
-        details: 'Your API key is invalid or expired. Please update it in the settings modal.',
+        details: 'Your API key is invalid or expired.',
         needsKeyReconfiguration: true
       });
     }
 
-    // Check for quota/billing errors
-    if (error.status === 429 || error.message?.includes('quota') || error.message?.includes('overloaded')) {
+    if (error.status === 429 || error.message?.includes('quota')) {
       return res.status(429).json({
         error: 'API quota exceeded',
-        details: 'Your API key has exceeded its quota or the service is overloaded. Please try again later.',
+        details: 'Please try again later.',
         needsKeyReconfiguration: false
       });
     }
 
-    // Generic error
     res.status(500).json({
       error: 'Failed to generate reserved page: ' + error.message
     });

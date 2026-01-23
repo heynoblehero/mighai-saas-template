@@ -11,7 +11,6 @@ import ReferenceImagesStep from './steps/ReferenceImagesStep';
 import AIKeysStep from './steps/AIKeysStep';
 import EmailKeysStep from './steps/EmailKeysStep';
 import PaymentKeysStep from './steps/PaymentKeysStep';
-import PlansSetupStep from './steps/PlansSetupStep';
 import PageGenerationStep from './steps/PageGenerationStep';
 import ReviewCompleteStep from './steps/ReviewCompleteStep';
 
@@ -24,9 +23,8 @@ const STEP_COMPONENTS = {
   5: AIKeysStep,
   6: EmailKeysStep,
   7: PaymentKeysStep,
-  8: PlansSetupStep,
-  9: PageGenerationStep,
-  10: ReviewCompleteStep
+  8: PageGenerationStep,
+  9: ReviewCompleteStep
 };
 
 function WizardContent({ onClose }) {
@@ -142,56 +140,58 @@ function WizardContent({ onClose }) {
           {StepComponent && <StepComponent />}
         </div>
 
-        {/* Footer navigation */}
-        <div className="flex items-center justify-between px-6 py-4 border-t border-slate-700 bg-slate-800/50">
-          <div className="flex items-center gap-3">
-            {canGoBack && (
-              <button
-                onClick={prevStep}
-                disabled={isSaving}
-                className="px-4 py-2 text-slate-300 hover:text-white hover:bg-slate-700 rounded-lg transition-colors flex items-center gap-2 disabled:opacity-50"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                </svg>
-                Back
-              </button>
-            )}
-          </div>
+        {/* Footer navigation - hidden on Page Generation step (step 8) which has its own navigation */}
+        {currentStep !== 8 && (
+          <div className="flex items-center justify-between px-6 py-4 border-t border-slate-700 bg-slate-800/50">
+            <div className="flex items-center gap-3">
+              {canGoBack && (
+                <button
+                  onClick={prevStep}
+                  disabled={isSaving}
+                  className="px-4 py-2 text-slate-300 hover:text-white hover:bg-slate-700 rounded-lg transition-colors flex items-center gap-2 disabled:opacity-50"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                  </svg>
+                  Back
+                </button>
+              )}
+            </div>
 
-          <div className="flex items-center gap-3">
-            {canSkip && (
-              <button
-                onClick={skipStep}
-                disabled={isSaving}
-                className="px-4 py-2 text-slate-400 hover:text-white transition-colors disabled:opacity-50"
-              >
-                Skip for now
-              </button>
-            )}
-            {!isLastStep && (
-              <button
-                onClick={nextStep}
-                disabled={isSaving}
-                className="px-6 py-2.5 bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white rounded-lg font-medium transition-all flex items-center gap-2 disabled:opacity-50"
-              >
-                {isSaving ? (
-                  <>
-                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                    Saving...
-                  </>
-                ) : (
-                  <>
-                    Continue
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                    </svg>
-                  </>
-                )}
-              </button>
-            )}
+            <div className="flex items-center gap-3">
+              {canSkip && (
+                <button
+                  onClick={skipStep}
+                  disabled={isSaving}
+                  className="px-4 py-2 text-slate-400 hover:text-white transition-colors disabled:opacity-50"
+                >
+                  Skip for now
+                </button>
+              )}
+              {!isLastStep && (
+                <button
+                  onClick={nextStep}
+                  disabled={isSaving}
+                  className="px-6 py-2.5 bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white rounded-lg font-medium transition-all flex items-center gap-2 disabled:opacity-50"
+                >
+                  {isSaving ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                      Saving...
+                    </>
+                  ) : (
+                    <>
+                      Continue
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                      </svg>
+                    </>
+                  )}
+                </button>
+              )}
+            </div>
           </div>
-        </div>
+        )}
       </div>
     </div>
   );

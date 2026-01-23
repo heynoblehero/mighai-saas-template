@@ -4,8 +4,8 @@ import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
 
-// Ensure wizard uploads directory exists
-const uploadsDir = path.join(process.cwd(), 'uploads', 'wizard');
+// Ensure wizard uploads directory exists (in public for static serving)
+const uploadsDir = path.join(process.cwd(), 'public', 'uploads', 'wizard');
 if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
 }

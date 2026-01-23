@@ -48,6 +48,7 @@ const navigation = [
     name: 'Communications',
     items: [
       { name: 'Email Management', href: '/admin/email-management', icon: 'mail', current: false },
+      { name: 'Email List', href: '/admin/email-list', icon: 'users', current: false },
       { name: 'Connect Telegram', href: '/admin/telegram-bots', icon: 'message-square', current: false },
     ]
   },

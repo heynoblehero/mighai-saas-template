@@ -3,10 +3,54 @@ import Link from 'next/link';
 import { useRouter } from 'next/router';
 import AdminLayout from '../../../../components/AdminLayout';
 
+// Built-in subscriber API endpoints documentation
+const SUBSCRIBER_APIS = [
+  {
+    name: 'Get Subscriber Profile',
+    method: 'GET',
+    path: '/api/subscriber/me',
+    description: 'Returns current subscriber profile, plan details, and usage stats',
+    auth: 'Subscriber JWT (auth-token cookie)'
+  },
+  {
+    name: 'List Subscriber Files',
+    method: 'GET',
+    path: '/api/subscriber/files',
+    description: 'Lists all files uploaded by the current subscriber',
+    auth: 'Subscriber JWT',
+    params: '?bucket=<slug> (optional)'
+  },
+  {
+    name: 'Upload File',
+    method: 'POST',
+    path: '/api/subscriber/upload',
+    description: 'Upload a file to a user-accessible bucket',
+    auth: 'Subscriber JWT',
+    params: '?bucket=<slug> (required)',
+    body: 'multipart/form-data with "file" field'
+  },
+  {
+    name: 'Download/Delete File',
+    method: 'GET/DELETE',
+    path: '/api/subscriber/files/[id]',
+    description: 'Download or delete a specific file (only files owned by subscriber)',
+    auth: 'Subscriber JWT'
+  },
+  {
+    name: 'List Subscriber Tasks',
+    method: 'GET',
+    path: '/api/subscriber/tasks',
+    description: 'Lists all generated content/tasks for the current subscriber',
+    auth: 'Subscriber JWT',
+    params: '?status=<status> (optional)'
+  }
+];
+
 export default function BackendRoutes() {
   const [routes, setRoutes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all');
+  const [showBuiltIn, setShowBuiltIn] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
@@ -161,7 +205,70 @@ export default function BackendRoutes() {
           ))}
         </div>
 
-        {/* Routes List */}
+        {/* Built-in Subscriber APIs */}
+        <div className="bg-slate-800 border border-slate-700 shadow-xl rounded-xl overflow-hidden">
+          <button
+            onClick={() => setShowBuiltIn(!showBuiltIn)}
+            className="w-full px-6 py-4 flex items-center justify-between text-left hover:bg-slate-700/50 transition-colors"
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-blue-600/20 rounded-lg flex items-center justify-center">
+                <svg className="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                </svg>
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-slate-100">Built-in Subscriber APIs</h3>
+                <p className="text-sm text-slate-400">Reserved endpoints for subscriber data isolation</p>
+              </div>
+            </div>
+            <svg className={`w-5 h-5 text-slate-400 transition-transform ${showBuiltIn ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
+
+          {showBuiltIn && (
+            <div className="border-t border-slate-700">
+              <div className="p-4 bg-blue-900/10 border-b border-slate-700">
+                <p className="text-sm text-blue-300">
+                  These APIs require subscriber authentication via the <code className="px-1 py-0.5 bg-slate-700 rounded">auth-token</code> cookie.
+                  Subscribers can only access their own data (files, tasks).
+                </p>
+              </div>
+              <div className="divide-y divide-slate-700">
+                {SUBSCRIBER_APIS.map((api, idx) => (
+                  <div key={idx} className="px-6 py-4 hover:bg-slate-700/30">
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className={`px-2 py-0.5 text-xs font-medium rounded border ${
+                            api.method.includes('GET') ? 'bg-blue-900/20 text-blue-400 border-blue-600/30' :
+                            api.method.includes('POST') ? 'bg-green-900/20 text-green-400 border-green-600/30' :
+                            api.method.includes('DELETE') ? 'bg-red-900/20 text-red-400 border-red-600/30' :
+                            'bg-purple-900/20 text-purple-400 border-purple-600/30'
+                          }`}>
+                            {api.method}
+                          </span>
+                          <span className="font-medium text-slate-200">{api.name}</span>
+                        </div>
+                        <code className="text-sm text-emerald-400 font-mono">{api.path}</code>
+                        <p className="text-sm text-slate-400 mt-1">{api.description}</p>
+                        {api.params && (
+                          <p className="text-xs text-slate-500 mt-1">Params: {api.params}</p>
+                        )}
+                        {api.body && (
+                          <p className="text-xs text-slate-500">Body: {api.body}</p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Custom Routes List */}
         <div className="bg-slate-800 border border-slate-700 shadow-xl rounded-xl overflow-hidden">
           {routes.length === 0 ? (
             <div className="text-center py-16">

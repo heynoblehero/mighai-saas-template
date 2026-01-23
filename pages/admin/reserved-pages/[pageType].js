@@ -2,11 +2,12 @@ import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import AdminLayout from '../../../components/AdminLayout';
 import AIPageBuilder from '../../../components/AIPageBuilder';
+import Toast from '../../../components/ui/Toast';
 
 export default function ReservedPageCustomizer() {
   const router = useRouter();
   const { pageType } = router.query;
-  
+
   const [currentPrompt, setCurrentPrompt] = useState('');
   const [chatHistory, setChatHistory] = useState([]);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -23,6 +24,9 @@ export default function ReservedPageCustomizer() {
   const [isAnalyzingImage, setIsAnalyzingImage] = useState(false);
   const [imageAnalysis, setImageAnalysis] = useState(null);
   const [viewMode, setViewMode] = useState('preview'); // 'preview' or 'code'
+  const [apiKeyConfigured, setApiKeyConfigured] = useState(null); // null = checking, true/false = result
+  const [toast, setToast] = useState({ visible: false, message: '', type: 'success' });
+  const [conversationId, setConversationId] = useState(null); // Track conversation for edit stacking
 
   const previewRef = useRef(null);
   const chatEndRef = useRef(null);
@@ -71,6 +75,21 @@ export default function ReservedPageCustomizer() {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [chatHistory]);
 
+  // Check if Claude API key is configured in settings
+  useEffect(() => {
+    const checkApiKeyStatus = async () => {
+      try {
+        const response = await fetch('/api/admin/ai-settings');
+        const data = await response.json();
+        setApiKeyConfigured(data.success && data.settings?.has_api_key);
+      } catch (error) {
+        console.error('Error checking API key status:', error);
+        setApiKeyConfigured(false);
+      }
+    };
+    checkApiKeyStatus();
+  }, []);
+
   const fetchPageData = async () => {
     try {
       // Fetch rules
@@ -114,6 +133,12 @@ export default function ReservedPageCustomizer() {
     const file = e.target.files[0];
     if (!file) return;
 
+    // Check if API key is configured
+    if (!apiKeyConfigured) {
+      setError('Please configure your Claude API key in Settings > AI Settings first');
+      return;
+    }
+
     const formData = new FormData();
     formData.append('image', file);
 
@@ -128,7 +153,7 @@ export default function ReservedPageCustomizer() {
       if (data.success) {
         setUploadedImage(data);
 
-        // Auto-analyze the image
+        // Auto-analyze the image using global Claude key
         setIsAnalyzingImage(true);
         const analysisResponse = await fetch('/api/ai/analyze-layout-image', {
           method: 'POST',
@@ -150,18 +175,26 @@ export default function ReservedPageCustomizer() {
             timestamp: new Date()
           };
           setChatHistory(prev => [...prev, analysisMessage]);
+        } else {
+          throw new Error(analysisData.error || 'Failed to analyze image');
         }
         setIsAnalyzingImage(false);
       }
     } catch (error) {
       console.error('Image upload failed:', error);
-      setError('Failed to upload or analyze image');
+      setError(error.message || 'Failed to upload or analyze image');
       setIsAnalyzingImage(false);
     }
   };
 
   const generatePage = async (prompt, isModification = false) => {
     if (!prompt.trim()) return;
+
+    // Check if API key is configured
+    if (!apiKeyConfigured) {
+      setError('Please configure your Claude API key in Settings > AI Settings first');
+      return;
+    }
 
     setIsGenerating(true);
     setError('');
@@ -175,6 +208,8 @@ export default function ReservedPageCustomizer() {
     setChatHistory(prev => [...prev, userMessage]);
 
     try {
+      // Use global Claude API key (configured in Settings > AI Settings)
+      // Send conversationId to enable edit stacking (edits build on each other)
       const response = await fetch('/api/ai/generate-reserved-page', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -183,7 +218,8 @@ export default function ReservedPageCustomizer() {
           prompt: prompt,
           context: isModification ? currentCode : '',
           iteration_type: isModification ? 'modify' : 'new',
-          layoutAnalysis: imageAnalysis
+          layoutAnalysis: imageAnalysis,
+          conversationId: conversationId // Send existing conversation ID for edit stacking
         })
       });
 
@@ -192,7 +228,13 @@ export default function ReservedPageCustomizer() {
       if (data.success) {
         setCurrentCode(data.html_code);
         setPreviewKey(prev => prev + 1);
-        
+        setToast({ visible: true, message: 'Design generated successfully!', type: 'success' });
+
+        // Store conversation ID for subsequent edits (enables stacking)
+        if (data.conversationId) {
+          setConversationId(data.conversationId);
+        }
+
         const aiMessage = {
           id: Date.now() + 1,
           type: 'ai',
@@ -377,6 +419,7 @@ export default function ReservedPageCustomizer() {
     setPreviewKey(prev => prev + 1); // Refresh preview
   };
 
+
   if (!pageType) {
     return (
       <AdminLayout title="Reserved Page Customizer">
@@ -482,6 +525,20 @@ export default function ReservedPageCustomizer() {
             )}
 
             <button
+              onClick={() => router.push('/admin/settings')}
+              className={`px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 ${
+                apiKeyConfigured
+                  ? 'bg-slate-600 hover:bg-slate-500 text-white'
+                  : 'bg-amber-600 hover:bg-amber-500 text-white'
+              }`}
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+              </svg>
+              {apiKeyConfigured ? 'Claude Key Configured' : 'Configure API Key'}
+            </button>
+
+            <button
               onClick={resetToDefault}
               className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition-colors"
             >
@@ -542,35 +599,83 @@ export default function ReservedPageCustomizer() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-[calc(100vh-400px)]">
           {/* Left Panel - Chat Interface */}
           <div className="bg-slate-800 border border-slate-700 rounded-xl shadow-xl overflow-hidden flex flex-col">
-            <div className="px-6 py-4 border-b border-slate-700 bg-slate-900/50">
-              <h3 className="text-lg font-semibold text-slate-200 flex items-center">
-                <span className="mr-2">🎨</span>
-                AI Customizer
-              </h3>
-              <p className="text-sm text-slate-400 mt-1">Describe how you want to customize this page</p>
+            {/* Gradient Header */}
+            <div className="bg-gradient-to-r from-emerald-600 via-emerald-700 to-teal-700 px-6 py-5 relative overflow-hidden">
+              <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHZpZXdCb3g9IjAgMCA0MCA0MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxwYXRoIGQ9Ik0wIDBoNDBMNDAgNDBIMHoiLz48cGF0aCBkPSJNMCAwaDIwdjIwSDB6TTIwIDIwaDIwdjIwSDIweiIgZmlsbD0iI2ZmZiIgZmlsbC1vcGFjaXR5PSIuMDUiLz48L2c+PC9zdmc+')] opacity-30"></div>
+              <div className="relative z-10 flex items-center gap-4">
+                <div className="w-12 h-12 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center shadow-lg border border-white/20">
+                  <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                  </svg>
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold text-white tracking-tight">AI Customizer</h3>
+                  <p className="text-emerald-100 text-sm mt-0.5">Describe your design vision</p>
+                </div>
+              </div>
             </div>
 
             {/* Chat History */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-4">
+            <div className="flex-1 overflow-y-auto p-5 space-y-4 bg-slate-900/30">
               {chatHistory.length === 0 && (
-                <div className="text-center py-8">
-                  <div className="text-4xl mb-4">🎨</div>
-                  <h3 className="text-lg font-medium text-slate-200 mb-2">Ready to customize?</h3>
-                  <p className="text-slate-400 text-sm mb-6">Try one of these examples or describe your own style:</p>
-                  <div className="space-y-2">
-                    {(examplePrompts[pageType] || []).slice(0, 3).map((prompt, index) => (
+                <div className="text-center py-6">
+                  {/* API Key Not Configured State */}
+                  {apiKeyConfigured === false && (
+                    <div className="mb-8 p-6 bg-amber-900/20 border border-amber-500/30 rounded-2xl">
+                      <div className="w-16 h-16 mx-auto mb-4 bg-amber-500/20 rounded-2xl flex items-center justify-center">
+                        <svg className="w-8 h-8 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+                        </svg>
+                      </div>
+                      <h3 className="text-lg font-semibold text-amber-300 mb-2">Claude API Key Required</h3>
+                      <p className="text-amber-200/70 text-sm mb-4 max-w-sm mx-auto">
+                        Configure your Claude API key in Settings to start generating custom page designs.
+                      </p>
                       <button
-                        key={index}
-                        onClick={() => setCurrentPrompt(prompt)}
-                        className="w-full text-left p-3 bg-slate-700/50 hover:bg-slate-700 border border-slate-600 rounded-lg text-sm text-slate-300 hover:text-slate-200 transition-colors"
+                        onClick={() => router.push('/admin/settings')}
+                        className="px-6 py-3 bg-amber-600 hover:bg-amber-500 text-white rounded-xl font-medium transition-colors inline-flex items-center gap-2 shadow-lg shadow-amber-900/30"
                       >
-                        {prompt}
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                        </svg>
+                        Go to AI Settings
                       </button>
-                    ))}
-                  </div>
+                    </div>
+                  )}
+
+                  {/* Ready to Customize State - only show if API key configured */}
+                  {(apiKeyConfigured === true || apiKeyConfigured === null) && (
+                    <>
+                      {/* Empty State Icon */}
+                      <div className="w-20 h-20 mx-auto mb-5 bg-gradient-to-br from-emerald-500/20 to-teal-500/20 rounded-2xl flex items-center justify-center border border-emerald-500/30">
+                        <svg className="w-10 h-10 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01" />
+                        </svg>
+                      </div>
+                      <h3 className="text-xl font-semibold text-white mb-2">Ready to customize?</h3>
+                      <p className="text-slate-400 text-sm mb-6 max-w-sm mx-auto">Describe your vision or try one of these examples:</p>
+
+                      {/* Example Prompts */}
+                      <div className="space-y-2 max-w-md mx-auto">
+                        {(examplePrompts[pageType] || []).slice(0, 3).map((prompt, index) => (
+                          <button
+                            key={index}
+                            onClick={() => setCurrentPrompt(prompt)}
+                            className="w-full text-left p-4 bg-slate-800/80 hover:bg-slate-700 border border-slate-600/50 hover:border-emerald-500/50 rounded-xl text-sm text-slate-300 hover:text-white transition-all duration-200 group"
+                          >
+                            <div className="flex items-start gap-3">
+                              <span className="text-emerald-400 group-hover:scale-110 transition-transform">✨</span>
+                              <span>{prompt}</span>
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    </>
+                  )}
 
                   {/* Image Upload Section */}
-                  <div className="mt-6 p-6 bg-slate-700/50 rounded-lg border-2 border-dashed border-slate-600">
+                  <div className="mt-6 p-5 bg-slate-800/50 rounded-xl border-2 border-dashed border-slate-600 hover:border-emerald-500/50 transition-colors group">
                     <input
                       type="file"
                       id="layoutImageReserved"
@@ -583,9 +688,13 @@ export default function ReservedPageCustomizer() {
                       htmlFor="layoutImageReserved"
                       className="cursor-pointer flex flex-col items-center"
                     >
-                      <div className="text-5xl mb-3">📸</div>
-                      <div className="text-slate-200 font-medium mb-1">Upload Layout Image (Optional)</div>
-                      <div className="text-slate-400 text-xs">Upload a reference design or screenshot</div>
+                      <div className="w-14 h-14 bg-slate-700 group-hover:bg-emerald-600/20 rounded-xl flex items-center justify-center mb-3 transition-colors">
+                        <svg className="w-7 h-7 text-slate-400 group-hover:text-emerald-400 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                      </div>
+                      <div className="text-white font-medium mb-1">Upload Reference Image</div>
+                      <div className="text-slate-500 text-xs">PNG, JPG up to 10MB</div>
                     </label>
                   </div>
                 </div>
@@ -617,46 +726,94 @@ export default function ReservedPageCustomizer() {
               )}
 
               {chatHistory.map((message) => (
-                <div key={message.id} className={`flex ${message.type === 'user' ? 'justify-end' : 'justify-start'}`}>
-                  <div className={`max-w-[80%] rounded-lg px-4 py-3 ${
+                <div key={message.id} className={`flex gap-3 ${message.type === 'user' ? 'flex-row-reverse' : 'flex-row'}`}>
+                  {/* Avatar */}
+                  <div className={`flex-shrink-0 w-9 h-9 rounded-xl flex items-center justify-center ${
                     message.type === 'user'
-                      ? 'bg-emerald-600 text-white'
+                      ? 'bg-emerald-600'
                       : message.type === 'error'
-                      ? 'bg-red-900/20 border border-red-600/30 text-red-300'
+                      ? 'bg-red-600/20 border border-red-500/30'
                       : message.type === 'system'
-                      ? 'bg-green-900/20 border border-green-600/30 text-green-300'
-                      : 'bg-slate-700 text-slate-200'
+                      ? 'bg-blue-600/20 border border-blue-500/30'
+                      : 'bg-gradient-to-br from-violet-600 to-purple-600'
                   }`}>
-                    <p className="text-sm">{message.content}</p>
+                    {message.type === 'user' ? (
+                      <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                      </svg>
+                    ) : message.type === 'error' ? (
+                      <svg className="w-5 h-5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                      </svg>
+                    ) : message.type === 'system' ? (
+                      <svg className="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                    ) : (
+                      <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                      </svg>
+                    )}
+                  </div>
+                  {/* Message Bubble */}
+                  <div className={`max-w-[75%] rounded-2xl px-4 py-3 ${
+                    message.type === 'user'
+                      ? 'bg-emerald-600 text-white rounded-tr-md'
+                      : message.type === 'error'
+                      ? 'bg-red-900/30 border border-red-500/30 text-red-200 rounded-tl-md'
+                      : message.type === 'system'
+                      ? 'bg-blue-900/30 border border-blue-500/30 text-blue-200 rounded-tl-md'
+                      : 'bg-slate-700/80 text-slate-100 rounded-tl-md'
+                  }`}>
+                    <p className="text-sm leading-relaxed">{message.content}</p>
                     {message.type === 'ai' && message.tokens_used && (
-                      <div className="mt-2 pt-2 border-t border-slate-600 text-xs text-slate-400">
-                        Tokens: {message.tokens_used} • Cost: ${message.estimated_cost?.toFixed(4)}
+                      <div className="mt-2 pt-2 border-t border-white/10 text-xs text-slate-400 flex items-center gap-2">
+                        <span className="px-2 py-0.5 bg-slate-600/50 rounded-full">{message.tokens_used} tokens</span>
+                        <span className="px-2 py-0.5 bg-emerald-600/30 text-emerald-300 rounded-full">${message.estimated_cost?.toFixed(4)}</span>
                       </div>
                     )}
-                    <div className="text-xs text-slate-500 mt-1">
-                      {message.timestamp.toLocaleTimeString()}
+                    <div className="text-xs opacity-60 mt-1.5">
+                      {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                     </div>
                   </div>
                 </div>
               ))}
 
               {isAnalyzingImage && (
-                <div className="flex justify-start">
-                  <div className="max-w-[80%] bg-blue-900/20 border border-blue-600/30 text-blue-200 rounded-lg px-4 py-3">
-                    <div className="flex items-center space-x-2">
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-400"></div>
-                      <span className="text-sm">Analyzing layout image...</span>
+                <div className="flex gap-3">
+                  <div className="flex-shrink-0 w-9 h-9 rounded-xl flex items-center justify-center bg-blue-600/20 border border-blue-500/30">
+                    <svg className="w-5 h-5 text-blue-400 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                  </div>
+                  <div className="max-w-[75%] rounded-2xl rounded-tl-md px-4 py-3 bg-blue-900/30 border border-blue-500/30">
+                    <div className="flex items-center gap-3">
+                      <div className="flex space-x-1">
+                        <span className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></span>
+                        <span className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></span>
+                        <span className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></span>
+                      </div>
+                      <span className="text-sm text-blue-200">Analyzing your image...</span>
                     </div>
                   </div>
                 </div>
               )}
-              
+
               {isGenerating && (
-                <div className="flex justify-start">
-                  <div className="max-w-[80%] bg-slate-700 text-slate-200 rounded-lg px-4 py-3">
-                    <div className="flex items-center space-x-2">
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-emerald-600"></div>
-                      <span className="text-sm">Customizing your page...</span>
+                <div className="flex gap-3">
+                  <div className="flex-shrink-0 w-9 h-9 rounded-xl flex items-center justify-center bg-gradient-to-br from-violet-600 to-purple-600">
+                    <svg className="w-5 h-5 text-white animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                    </svg>
+                  </div>
+                  <div className="max-w-[75%] rounded-2xl rounded-tl-md px-4 py-3 bg-slate-700/80">
+                    <div className="flex items-center gap-3">
+                      <div className="flex space-x-1">
+                        <span className="w-2 h-2 bg-emerald-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></span>
+                        <span className="w-2 h-2 bg-emerald-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></span>
+                        <span className="w-2 h-2 bg-emerald-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></span>
+                      </div>
+                      <span className="text-sm text-slate-200">Generating your design...</span>
                     </div>
                   </div>
                 </div>
@@ -666,83 +823,166 @@ export default function ReservedPageCustomizer() {
             </div>
 
             {/* Input Area */}
-            <div className="border-t border-slate-700 p-4">
-              {/* Image Upload Button */}
-              {chatHistory.length > 0 && !uploadedImage && (
-                <div className="mb-3">
-                  <input
-                    type="file"
-                    id="layoutImageReservedChat"
-                    accept="image/*"
-                    onChange={handleImageUpload}
-                    className="hidden"
-                    disabled={isAnalyzingImage}
-                  />
-                  <label
-                    htmlFor="layoutImageReservedChat"
-                    className="cursor-pointer inline-flex items-center space-x-2 px-4 py-2 bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded-lg text-slate-200 text-sm transition-colors"
-                  >
-                    <span>📷</span>
-                    <span>Upload Layout Image</span>
-                  </label>
-                </div>
-              )}
+            <div className="border-t border-slate-600/50 p-4 bg-slate-800/50">
+              <form onSubmit={handlePromptSubmit} className="relative">
+                {/* Main Input Container */}
+                <div className="relative flex items-end gap-2 bg-slate-900/50 border border-slate-600/50 rounded-2xl p-2 focus-within:border-emerald-500/50 focus-within:ring-2 focus-within:ring-emerald-500/20 transition-all">
+                  {/* Left Actions */}
+                  <div className="flex items-center gap-1 pb-1">
+                    {/* Image Upload Button */}
+                    <input
+                      type="file"
+                      id="layoutImageReservedChat"
+                      accept="image/*"
+                      onChange={handleImageUpload}
+                      className="hidden"
+                      disabled={isAnalyzingImage}
+                    />
+                    <label
+                      htmlFor="layoutImageReservedChat"
+                      className={`p-2.5 rounded-xl transition-all cursor-pointer ${
+                        uploadedImage
+                          ? 'bg-emerald-600/20 text-emerald-400 border border-emerald-500/30'
+                          : 'hover:bg-slate-700 text-slate-400 hover:text-emerald-400'
+                      }`}
+                      title={uploadedImage ? "Reference image attached" : "Upload reference image"}
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                      </svg>
+                    </label>
+                  </div>
 
-              <form onSubmit={handlePromptSubmit} className="flex space-x-3">
-                <input
-                  type="text"
-                  value={currentPrompt}
-                  onChange={(e) => setCurrentPrompt(e.target.value)}
-                  placeholder={chatHistory.length === 0 ? "Describe how you want to customize this page..." : "How would you like to modify the design?"}
-                  className="flex-1 px-4 py-3 bg-slate-700 border border-slate-600 rounded-lg text-slate-200 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors"
-                  disabled={isGenerating || isAnalyzingImage}
-                />
-                <button
-                  type="submit"
-                  disabled={isGenerating || isAnalyzingImage || !currentPrompt.trim()}
-                  className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-3 rounded-lg font-medium transition-colors disabled:opacity-50"
-                >
-                  {isGenerating ? '⏳' : '🎨'}
-                </button>
+                  {/* Text Input */}
+                  <div className="flex-1 min-w-0">
+                    <textarea
+                      value={currentPrompt}
+                      onChange={(e) => {
+                        setCurrentPrompt(e.target.value);
+                        e.target.style.height = 'auto';
+                        e.target.style.height = Math.min(e.target.scrollHeight, 120) + 'px';
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && !e.shiftKey) {
+                          e.preventDefault();
+                          if (currentPrompt.trim() && !isGenerating && !isAnalyzingImage) {
+                            handlePromptSubmit(e);
+                          }
+                        }
+                      }}
+                      placeholder={chatHistory.length === 0 ? "Describe your design vision..." : "Describe changes..."}
+                      className="w-full bg-transparent text-slate-200 placeholder-slate-500 focus:outline-none resize-none text-sm leading-relaxed py-2 px-1 max-h-[120px]"
+                      style={{ height: '40px' }}
+                      disabled={isGenerating || isAnalyzingImage}
+                      rows={1}
+                    />
+                  </div>
+
+                  {/* Send Button */}
+                  <button
+                    type="submit"
+                    disabled={isGenerating || isAnalyzingImage || !currentPrompt.trim()}
+                    className={`flex-shrink-0 p-3 rounded-xl font-medium transition-all duration-200 ${
+                      isGenerating || isAnalyzingImage || !currentPrompt.trim()
+                        ? 'bg-slate-700 text-slate-500 cursor-not-allowed'
+                        : 'bg-gradient-to-r from-emerald-500 to-teal-600 text-white shadow-lg shadow-emerald-500/25 hover:shadow-emerald-500/40 hover:scale-105 active:scale-95'
+                    }`}
+                  >
+                    {isGenerating ? (
+                      <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                    ) : (
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                      </svg>
+                    )}
+                  </button>
+                </div>
+
+                {/* Helper Text */}
+                <div className="flex items-center justify-between mt-2 px-2">
+                  <span className="text-xs text-slate-500">
+                    Press Enter to send, Shift+Enter for new line
+                  </span>
+                  {uploadedImage && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setUploadedImage(null);
+                        setImageAnalysis(null);
+                      }}
+                      className="text-xs text-slate-400 hover:text-red-400 flex items-center gap-1 transition-colors"
+                    >
+                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                      Remove image
+                    </button>
+                  )}
+                </div>
               </form>
             </div>
           </div>
 
           {/* Right Panel - Live Preview */}
           <div className="bg-slate-800 border border-slate-700 rounded-xl shadow-xl overflow-hidden flex flex-col">
-            <div className="px-6 py-4 border-b border-slate-700 bg-slate-900/50 flex justify-between items-center">
-              <h3 className="text-lg font-semibold text-slate-200 flex items-center">
-                <span className="mr-2">{viewMode === 'preview' ? '👁️' : '💻'}</span>
-                {viewMode === 'preview' ? 'Live Preview' : 'Code Editor'}
-              </h3>
-              <div className="flex items-center space-x-3">
-                {currentCode && (
-                  <div className="text-xs text-slate-400">
-                    {currentCode.length} characters
-                  </div>
-                )}
-                <div className="flex bg-slate-700 rounded-lg p-1">
-                  <button
-                    onClick={() => setViewMode('preview')}
-                    className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
-                      viewMode === 'preview'
-                        ? 'bg-emerald-600 text-white shadow-sm'
-                        : 'text-slate-400 hover:text-slate-300'
-                    }`}
-                  >
-                    👁️ Preview
-                  </button>
-                  <button
-                    onClick={() => setViewMode('code')}
-                    className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
-                      viewMode === 'code'
-                        ? 'bg-emerald-600 text-white shadow-sm'
-                        : 'text-slate-400 hover:text-slate-300'
-                    }`}
-                  >
-                    💻 Code
-                  </button>
+            <div className="px-5 py-4 border-b border-slate-600/50 bg-slate-900/50 flex justify-between items-center">
+              <div className="flex items-center gap-3">
+                <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
+                  viewMode === 'preview'
+                    ? 'bg-blue-500/20 border border-blue-500/30'
+                    : 'bg-violet-500/20 border border-violet-500/30'
+                }`}>
+                  {viewMode === 'preview' ? (
+                    <svg className="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                    </svg>
+                  ) : (
+                    <svg className="w-5 h-5 text-violet-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
+                    </svg>
+                  )}
                 </div>
+                <div>
+                  <h3 className="text-base font-semibold text-white">
+                    {viewMode === 'preview' ? 'Live Preview' : 'Code Editor'}
+                  </h3>
+                  {currentCode && (
+                    <p className="text-xs text-slate-400">{currentCode.length.toLocaleString()} characters</p>
+                  )}
+                </div>
+              </div>
+              <div className="flex bg-slate-700/50 rounded-xl p-1 border border-slate-600/50">
+                <button
+                  onClick={() => setViewMode('preview')}
+                  className={`px-4 py-2 rounded-lg text-xs font-medium transition-all duration-200 flex items-center gap-2 ${
+                    viewMode === 'preview'
+                      ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/25'
+                      : 'text-slate-400 hover:text-white hover:bg-slate-600/50'
+                  }`}
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                  </svg>
+                  Preview
+                </button>
+                <button
+                  onClick={() => setViewMode('code')}
+                  className={`px-4 py-2 rounded-lg text-xs font-medium transition-all duration-200 flex items-center gap-2 ${
+                    viewMode === 'code'
+                      ? 'bg-violet-600 text-white shadow-lg shadow-violet-600/25'
+                      : 'text-slate-400 hover:text-white hover:bg-slate-600/50'
+                  }`}
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
+                  </svg>
+                  Code
+                </button>
               </div>
             </div>
 
@@ -759,11 +999,27 @@ export default function ReservedPageCustomizer() {
                       title="Page Preview"
                     />
                   ) : (
-                    <div className="flex items-center justify-center h-full bg-slate-50">
-                      <div className="text-center text-slate-500">
-                        <div className="text-6xl mb-4">🎨</div>
-                        <h3 className="text-lg font-medium mb-2">No customization yet</h3>
-                        <p className="text-sm">Start customizing to see a live preview</p>
+                    <div className="flex items-center justify-center h-full bg-gradient-to-br from-slate-100 to-slate-200">
+                      <div className="text-center max-w-sm px-6">
+                        <div className="w-20 h-20 mx-auto mb-5 bg-gradient-to-br from-blue-500/10 to-purple-500/10 rounded-2xl flex items-center justify-center border border-slate-300/50 shadow-lg">
+                          <svg className="w-10 h-10 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                          </svg>
+                        </div>
+                        <h3 className="text-xl font-bold text-slate-700 mb-2">Preview Area</h3>
+                        <p className="text-sm text-slate-500 mb-5">
+                          Your generated page will appear here. Use the AI customizer to create something amazing.
+                        </p>
+                        <div className="inline-flex flex-col gap-2.5 text-xs text-slate-500 bg-white/80 backdrop-blur-sm rounded-xl p-4 border border-slate-200">
+                          <div className="flex items-center gap-2.5">
+                            <span className="w-2 h-2 bg-emerald-500 rounded-full shadow-sm shadow-emerald-500/50"></span>
+                            <span>Setup Wizard auto-generates all pages</span>
+                          </div>
+                          <div className="flex items-center gap-2.5">
+                            <span className="w-2 h-2 bg-blue-500 rounded-full shadow-sm shadow-blue-500/50"></span>
+                            <span>AI chat lets you customize individually</span>
+                          </div>
+                        </div>
                       </div>
                     </div>
                   )}
@@ -780,10 +1036,14 @@ export default function ReservedPageCustomizer() {
                     />
                   ) : (
                     <div className="flex items-center justify-center h-full">
-                      <div className="text-center text-slate-400">
-                        <div className="text-6xl mb-4">💻</div>
-                        <h3 className="text-lg font-medium mb-2">No code yet</h3>
-                        <p className="text-sm">Generate a page to view and edit the code</p>
+                      <div className="text-center">
+                        <div className="w-20 h-20 mx-auto mb-5 bg-gradient-to-br from-violet-500/20 to-purple-500/20 rounded-2xl flex items-center justify-center border border-violet-500/30">
+                          <svg className="w-10 h-10 text-violet-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
+                          </svg>
+                        </div>
+                        <h3 className="text-xl font-bold text-white mb-2">No Code Yet</h3>
+                        <p className="text-sm text-slate-400 max-w-xs mx-auto">Generate a page using the AI customizer to view and edit the source code</p>
                       </div>
                     </div>
                   )}
@@ -795,14 +1055,39 @@ export default function ReservedPageCustomizer() {
 
         {/* Bottom Actions */}
         <div className="mt-6 space-y-4">
-          {/* Error Display */}
+          {/* Enhanced Error Display */}
           {error && (
-            <div className="bg-red-900/20 border border-red-600/30 text-red-300 px-4 py-3 rounded-xl">
-              <div className="flex items-center space-x-2">
-                <svg className="w-5 h-5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                <span>{error}</span>
+            <div className="bg-gradient-to-r from-red-900/40 to-red-800/20 border border-red-500/50 rounded-2xl p-5 shadow-lg shadow-red-900/20">
+              <div className="flex items-start gap-4">
+                <div className="flex-shrink-0 w-12 h-12 bg-red-500/20 rounded-xl flex items-center justify-center">
+                  <svg className="w-6 h-6 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                  </svg>
+                </div>
+                <div className="flex-1">
+                  <h4 className="text-lg font-semibold text-red-300 mb-1">Generation Failed</h4>
+                  <p className="text-red-200/80">{error}</p>
+                  {error.toLowerCase().includes('api key') && (
+                    <button
+                      onClick={() => router.push('/admin/settings')}
+                      className="mt-3 px-4 py-2 bg-red-600 hover:bg-red-500 text-white rounded-lg font-medium transition-colors inline-flex items-center gap-2"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                      </svg>
+                      Go to AI Settings
+                    </button>
+                  )}
+                </div>
+                <button
+                  onClick={() => setError('')}
+                  className="flex-shrink-0 text-red-400 hover:text-red-300 transition-colors"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
               </div>
             </div>
           )}
@@ -837,6 +1122,14 @@ export default function ReservedPageCustomizer() {
           </div>
         </div>
       </div>
+
+      {/* Toast Notifications */}
+      <Toast
+        message={toast.message}
+        type={toast.type}
+        isVisible={toast.visible}
+        onClose={() => setToast({ ...toast, visible: false })}
+      />
     </AdminLayout>
   );
 }

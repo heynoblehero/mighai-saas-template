@@ -8,14 +8,14 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const { imagePath, userPrompt } = req.body;
+  const { imagePath, userPrompt, userApiKey, userProvider } = req.body;
 
   if (!imagePath) {
     return res.status(400).json({ error: 'Image path is required' });
   }
 
   try {
-    // Read AI settings
+    // Read AI settings (fallback)
     const settingsPath = path.join(process.cwd(), 'data', 'ai-settings.json');
     let settings = {};
 
@@ -23,15 +23,25 @@ export default async function handler(req, res) {
       settings = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
     }
 
-    if (!settings.claude_api_key) {
+    // Determine which API key to use - prefer user-provided key
+    let apiKey;
+    if (userApiKey && (!userProvider || userProvider === 'claude')) {
+      // Use user-provided Claude key
+      apiKey = userApiKey;
+      console.log('[Layout Analysis] Using user-provided Claude API key');
+    } else if (settings.claude_api_key) {
+      // Fall back to server settings
+      apiKey = settings.claude_api_key;
+      console.log('[Layout Analysis] Using server Claude API key');
+    } else {
       return res.status(500).json({
-        error: 'Claude API key not configured. Please set it up in AI Settings.'
+        error: 'Claude API key required. Please configure it in the Setup Wizard (AI API Keys step).'
       });
     }
 
     // Initialize Anthropic client
     const anthropic = new Anthropic({
-      apiKey: settings.claude_api_key,
+      apiKey: apiKey,
     });
 
     // Read the image file

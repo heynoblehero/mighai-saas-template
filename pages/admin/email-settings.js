@@ -7,8 +7,12 @@ export default function EmailSettings() {
     from_email: '',
     from_name: '',
     resend_api_key: '',
-    email_notifications: true
+    email_notifications: true,
+    email_list_api_key: '',
+    support_reply_notifications: true
   });
+  const [showApiKey, setShowApiKey] = useState(false);
+  const [copying, setCopying] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -91,6 +95,28 @@ export default function EmailSettings() {
       setError('Failed to send test email');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const generateApiKey = () => {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+    let key = 'el_';
+    for (let i = 0; i < 32; i++) {
+      key += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    setSettings(prev => ({ ...prev, email_list_api_key: key }));
+    setShowApiKey(true);
+  };
+
+  const copyApiKey = async () => {
+    if (settings.email_list_api_key && !settings.email_list_api_key.includes('••••')) {
+      try {
+        await navigator.clipboard.writeText(settings.email_list_api_key);
+        setCopying(true);
+        setTimeout(() => setCopying(false), 2000);
+      } catch (err) {
+        console.error('Failed to copy:', err);
+      }
     }
   };
 
@@ -264,6 +290,97 @@ export default function EmailSettings() {
                 <p className="mt-2 text-sm text-slate-400 ml-7">
                   Receive email notifications for important events (new subscribers, errors, support requests)
                 </p>
+              </div>
+
+              {/* Support Reply Notifications Toggle */}
+              <div>
+                <label className="flex items-center gap-3">
+                  <input
+                    type="checkbox"
+                    name="support_reply_notifications"
+                    checked={settings.support_reply_notifications}
+                    onChange={handleChange}
+                    className="w-4 h-4 text-emerald-600 bg-slate-700 border-slate-600 rounded focus:ring-emerald-500 focus:ring-2"
+                  />
+                  <span className="text-sm font-medium text-slate-300">Send Email on Support Replies</span>
+                </label>
+                <p className="mt-2 text-sm text-slate-400 ml-7">
+                  Automatically email customers when you reply to their support messages
+                </p>
+              </div>
+
+              {/* Email List API Key */}
+              <div className="border-t border-slate-700 pt-6">
+                <label className="block text-sm font-medium text-slate-300 mb-2">
+                  Email List API Key
+                </label>
+                <div className="flex gap-2">
+                  <div className="flex-1 relative">
+                    <input
+                      type={showApiKey ? 'text' : 'password'}
+                      name="email_list_api_key"
+                      value={settings.email_list_api_key}
+                      onChange={handleChange}
+                      className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-lg text-slate-200 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors pr-24"
+                      placeholder="Click 'Generate' to create an API key"
+                      readOnly={settings.email_list_api_key?.includes('••••')}
+                    />
+                    <div className="absolute right-2 top-1/2 -translate-y-1/2 flex gap-1">
+                      {settings.email_list_api_key && !settings.email_list_api_key.includes('••••') && (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => setShowApiKey(!showApiKey)}
+                            className="p-1.5 text-slate-400 hover:text-slate-200"
+                          >
+                            {showApiKey ? (
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
+                              </svg>
+                            ) : (
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                              </svg>
+                            )}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={copyApiKey}
+                            className="p-1.5 text-slate-400 hover:text-slate-200"
+                          >
+                            {copying ? (
+                              <svg className="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                              </svg>
+                            ) : (
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                              </svg>
+                            )}
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={generateApiKey}
+                    className="px-4 py-3 bg-slate-600 hover:bg-slate-500 text-slate-200 rounded-lg font-medium transition-colors whitespace-nowrap"
+                  >
+                    {settings.email_list_api_key ? 'Regenerate' : 'Generate'}
+                  </button>
+                </div>
+                <p className="mt-2 text-sm text-slate-400">
+                  Use this API key to add emails from external platforms (newsletters, etc.)
+                </p>
+                <div className="mt-2 p-3 bg-slate-900/50 rounded-lg border border-slate-700">
+                  <p className="text-xs text-slate-400 font-mono">
+                    POST /api/email-list/subscribe<br />
+                    Authorization: Bearer {'<api_key>'}<br />
+                    Body: {'{ "email": "user@example.com", "name": "John" }'}
+                  </p>
+                </div>
               </div>
 
               {/* Submit Button */}

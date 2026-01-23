@@ -1,9 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
-import { GoogleGenerativeAI } from '@google/generative-ai';
 
 /**
- * API endpoint to validate user-provided AI provider API keys
- * Supports only Claude (Anthropic) and Gemini (Google)
+ * API endpoint to validate Claude API keys
  * Makes a minimal test request to verify the key works
  */
 export default async function handler(req, res) {
@@ -11,71 +9,24 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const { provider, apiKey } = req.body;
+  const { apiKey } = req.body;
 
   // Validate input
-  if (!provider) {
-    return res.status(400).json({ error: 'Provider is required' });
-  }
-
   if (!apiKey || typeof apiKey !== 'string' || apiKey.trim().length === 0) {
     return res.status(400).json({ error: 'API key is required' });
   }
 
-  console.log(`[API Key Validation] Testing ${provider} key...`);
-
-  try {
-    switch (provider.toLowerCase()) {
-      case 'claude':
-      case 'claude-sonnet':
-      case 'claude-haiku':
-        return await validateClaudeKey(apiKey, res);
-
-      case 'gemini':
-      case 'gemini-pro':
-      case 'gemini-flash':
-        return await validateGeminiKey(apiKey, res);
-
-      default:
-        return res.status(400).json({
-          valid: false,
-          error: `Unknown provider: ${provider}. Supported providers: claude, gemini`
-        });
-    }
-  } catch (error) {
-    console.error(`[API Key Validation] Error testing ${provider} key:`, error);
-
-    // Check for authentication errors
-    if (error.status === 401 || error.message?.includes('invalid_api_key') || error.message?.includes('Unauthorized') || error.message?.includes('API_KEY_INVALID')) {
-      return res.status(200).json({
-        valid: false,
-        error: 'Invalid API key. Please check your key and try again.',
-        provider
-      });
-    }
-
-    // Check for quota/billing errors
-    if (error.status === 429 || error.message?.includes('quota') || error.message?.includes('billing') || error.message?.includes('RESOURCE_EXHAUSTED')) {
-      return res.status(200).json({
-        valid: false,
-        error: 'API key is valid but has exceeded quota or billing issues.',
-        provider
-      });
-    }
-
-    // Generic error
-    return res.status(500).json({
+  // Validate key format
+  if (!apiKey.trim().startsWith('sk-ant-')) {
+    return res.status(200).json({
       valid: false,
-      error: `Validation failed: ${error.message}`,
-      provider
+      error: 'Invalid Claude API key format. Keys should start with "sk-ant-"',
+      provider: 'claude'
     });
   }
-}
 
-/**
- * Validate Claude (Anthropic) API key
- */
-async function validateClaudeKey(apiKey, res) {
+  console.log('[API Key Validation] Testing Claude key...');
+
   try {
     const client = new Anthropic({ apiKey: apiKey.trim() });
 
@@ -99,33 +50,30 @@ async function validateClaudeKey(apiKey, res) {
     });
   } catch (error) {
     console.error('[API Key Validation] Claude validation error:', error.message);
-    throw error;
-  }
-}
 
-/**
- * Validate Gemini (Google) API key
- */
-async function validateGeminiKey(apiKey, res) {
-  try {
-    const genAI = new GoogleGenerativeAI(apiKey.trim());
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
+    // Check for authentication errors
+    if (error.status === 401 || error.message?.includes('invalid_api_key') || error.message?.includes('Unauthorized')) {
+      return res.status(200).json({
+        valid: false,
+        error: 'Invalid API key. Please check your key and try again.',
+        provider: 'claude'
+      });
+    }
 
-    // Make minimal test request
-    const result = await model.generateContent('Hi');
-    const response = await result.response;
-    const text = response.text();
+    // Check for quota/billing errors
+    if (error.status === 429 || error.message?.includes('quota') || error.message?.includes('billing')) {
+      return res.status(200).json({
+        valid: false,
+        error: 'API key is valid but has exceeded quota or has billing issues.',
+        provider: 'claude'
+      });
+    }
 
-    console.log('[API Key Validation] Gemini key validation successful');
-
-    return res.status(200).json({
-      valid: true,
-      provider: 'gemini',
-      model: 'Gemini 2.0 Flash',
-      message: 'Gemini API key is valid'
+    // Generic error
+    return res.status(500).json({
+      valid: false,
+      error: `Validation failed: ${error.message}`,
+      provider: 'claude'
     });
-  } catch (error) {
-    console.error('[API Key Validation] Gemini validation error:', error.message);
-    throw error;
   }
 }
