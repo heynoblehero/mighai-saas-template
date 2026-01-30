@@ -1,7 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
+import { useRouter } from 'next/router';
 import AdminLayout from '../../components/AdminLayout';
 
 export default function SupportMessages() {
+  const router = useRouter();
   const [conversations, setConversations] = useState([]);
   const [selectedIdentifier, setSelectedIdentifier] = useState(null);
   const [messages, setMessages] = useState([]);
@@ -13,7 +15,7 @@ export default function SupportMessages() {
 
   useEffect(() => {
     fetchConversations();
-    
+
     // Poll for new conversations every 30 seconds
     const interval = setInterval(fetchConversations, 30000);
     return () => clearInterval(interval);
@@ -22,7 +24,7 @@ export default function SupportMessages() {
   useEffect(() => {
     if (selectedIdentifier) {
       fetchMessages(selectedIdentifier);
-      
+
       // Poll for new messages every 10 seconds when conversation is selected
       const interval = setInterval(() => fetchMessages(selectedIdentifier), 10000);
       return () => clearInterval(interval);
@@ -40,7 +42,7 @@ export default function SupportMessages() {
   const fetchConversations = async () => {
     try {
       let endpoint = '/api/admin/support/conversations';
-      
+
       if (activeTab === 'subscribers') {
         endpoint = '/api/admin/support/subscribers';
       } else if (activeTab === 'non-subscribers') {
@@ -67,10 +69,10 @@ export default function SupportMessages() {
       if (response.ok) {
         const data = await response.json();
         setMessages(data);
-        
+
         // Mark customer messages as read
         await fetch(`/api/admin/support/messages/${identifier}/read`, { method: 'PUT' });
-        
+
         // Update conversations to reflect read status
         setConversations(prev => prev.map(conv => {
           const convId = conv.user_id || conv.customer_email || conv.email;
@@ -98,11 +100,11 @@ export default function SupportMessages() {
         const message = await response.json();
         setMessages(prev => [...prev, message]);
         setNewMessage('');
-        
+
         // Update conversation with new message
         setConversations(prev => prev.map(conv => {
           const convId = conv.user_id || conv.customer_email || conv.email;
-          return convId === selectedIdentifier 
+          return convId === selectedIdentifier
             ? { ...conv, last_message: newMessage, last_message_time: message.created_at }
             : conv;
         }));
@@ -118,9 +120,9 @@ export default function SupportMessages() {
   };
 
   const formatTime = (dateString) => {
-    return new Date(dateString).toLocaleTimeString([], { 
-      hour: '2-digit', 
-      minute: '2-digit' 
+    return new Date(dateString).toLocaleTimeString([], {
+      hour: '2-digit',
+      minute: '2-digit'
     });
   };
 
@@ -174,6 +176,16 @@ export default function SupportMessages() {
               </span>
             )}
             <button
+              onClick={() => router.push('/admin/support-chat-settings')}
+              className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-slate-300 rounded-lg transition-colors inline-flex items-center space-x-2"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+              <span>Widget Settings</span>
+            </button>
+            <button
               onClick={fetchConversations}
               className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-slate-300 rounded-lg transition-colors inline-flex items-center space-x-2"
             >
@@ -192,7 +204,7 @@ export default function SupportMessages() {
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-lg font-semibold text-slate-200">Conversations</h2>
             </div>
-            
+
             {/* Tabs */}
             <div className="flex space-x-1 bg-slate-900/50 p-1 rounded-lg">
               <button
@@ -227,7 +239,7 @@ export default function SupportMessages() {
               </button>
             </div>
           </div>
-          
+
           <div className="flex-1 overflow-y-auto">
             {conversationsLoading ? (
               <div className="p-4 text-center">
@@ -246,7 +258,7 @@ export default function SupportMessages() {
               conversations.map((conv) => {
                 const identifier = conv.user_id || conv.customer_email || conv.email;
                 const isSubscriber = conv.is_subscriber !== false && conv.user_id;
-                
+
                 return (
                   <div
                     key={identifier}
@@ -261,8 +273,8 @@ export default function SupportMessages() {
                           {conv.email}
                         </div>
                         <span className={`px-2 py-1 text-xs rounded-full ${
-                          isSubscriber 
-                            ? 'bg-emerald-900/30 text-emerald-300 border border-emerald-600/30' 
+                          isSubscriber
+                            ? 'bg-emerald-900/30 text-emerald-300 border border-emerald-600/30'
                             : 'bg-blue-900/30 text-blue-300 border border-blue-600/30'
                         }`}>
                           {isSubscriber ? 'Sub' : 'Guest'}
@@ -339,8 +351,8 @@ export default function SupportMessages() {
                             return identifier === selectedIdentifier;
                           });
                           const isSubscriber = conv?.is_subscriber !== false && conv?.user_id;
-                          return isSubscriber 
-                            ? 'bg-emerald-900/30 text-emerald-300 border border-emerald-600/30' 
+                          return isSubscriber
+                            ? 'bg-emerald-900/30 text-emerald-300 border border-emerald-600/30'
                             : 'bg-blue-900/30 text-blue-300 border border-blue-600/30';
                         })()
                       }`}>
@@ -361,9 +373,9 @@ export default function SupportMessages() {
               {/* Messages */}
               <div className="flex-1 overflow-y-auto p-4 space-y-4">
                 {messages.map((message, index) => {
-                  const showDate = index === 0 || 
+                  const showDate = index === 0 ||
                     formatDate(messages[index - 1].created_at) !== formatDate(message.created_at);
-                  
+
                   return (
                     <div key={message.id}>
                       {showDate && (
@@ -433,29 +445,7 @@ export default function SupportMessages() {
           )}
         </div>
       </div>
-
-      {/* Info Card */}
-      <div className="bg-emerald-900/20 border border-emerald-600/30 rounded-xl p-6">
-        <div className="flex">
-          <div className="flex-shrink-0">
-            <svg className="h-6 w-6 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-          </div>
-          <div className="ml-3">
-            <h3 className="text-lg font-semibold text-emerald-300 mb-2">
-              Support System Features
-            </h3>
-            <div className="text-emerald-200/80 space-y-2">
-              <p>• Real-time conversation updates every 10-30 seconds</p>
-              <p>• Separate subscriber and non-subscriber messaging channels</p>
-              <p>• Automatic message read status tracking and unread counters</p>
-              <p>• Support for both registered users and guest customers</p>
-            </div>
-          </div>
-        </div>
       </div>
-    </div>
     </AdminLayout>
   );
 }

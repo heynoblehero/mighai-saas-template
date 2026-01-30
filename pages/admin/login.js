@@ -20,7 +20,7 @@ export default function AdminLogin() {
 
   const checkExistingAuth = async () => {
     try {
-      const response = await fetch('/api/auth/me');
+      const response = await fetch('/api/auth/me', { credentials: 'include' });
       if (response.ok) {
         const data = await response.json();
         if (data.user.role === 'admin') {
@@ -42,6 +42,7 @@ export default function AdminLogin() {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: new URLSearchParams(formData).toString(),
+        credentials: 'include',
       });
 
       const data = await response.json();

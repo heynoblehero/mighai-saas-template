@@ -502,75 +502,9 @@ export function injectPageFunctionality(htmlCode, pageType) {
           });
         }
       });
-    </script>`,
-
-    'landing-page': `
-    <script>
-      // Always override checkSystemStatus to ensure it returns a promise
-      window.checkSystemStatus = async function(event) {
-          const button = event && event.target ? event.target : null;
-
-          if (button) {
-            setLoading(button, true);
-          }
-
-          try {
-            const response = await fetch('/api/health', {
-              method: 'GET',
-              headers: {
-                'Content-Type': 'application/json'
-              }
-            });
-
-            if (response.ok) {
-              const data = await response.json();
-              if (button) {
-                const container = document.getElementById('alertContainer');
-                if (container) {
-                  container.innerHTML = '<div class="alert alert-success" style="display: block;">✅ System is healthy and ready! All services are operational.</div>';
-                }
-              }
-              updateSystemStatusBadge('System Online', true);
-            } else {
-              throw new Error('Health check failed');
-            }
-          } catch (error) {
-            console.error('System status check error:', error);
-            if (button) {
-              const container = document.getElementById('alertContainer');
-              if (container) {
-                container.innerHTML = '<div class="alert alert-error" style="display: block;">⚠️ Unable to verify system status. Please check your configuration.</div>';
-              }
-            }
-            updateSystemStatusBadge('Status Unknown', false);
-          } finally {
-            if (button) {
-              setLoading(button, false);
-            }
-          }
-        };
-
-      function updateSystemStatusBadge(text, isOnline) {
-        const statusElement = document.getElementById('systemStatus');
-        if (statusElement) {
-          statusElement.textContent = text;
-          const indicator = statusElement.previousElementSibling;
-          if (indicator && indicator.classList.contains('status-indicator')) {
-            indicator.style.background = isOnline ? '#10b981' : '#f59e0b';
-          }
-        }
-      }
-
-      // Auto-check status on page load (without button)
-      document.addEventListener('DOMContentLoaded', function() {
-        // Call without event to skip button loading states
-        if (typeof window.checkSystemStatus === 'function') {
-          window.checkSystemStatus().catch(err => {
-            console.log('Initial status check failed:', err);
-          });
-        }
-      });
     </script>`
+
+    // Note: landing-page has no required scripts - complete design freedom
   };
 
   // Add common utilities first

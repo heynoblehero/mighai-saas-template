@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/router';
 
 /**
@@ -26,6 +26,16 @@ export default function SupportWidget({ previewMode = false, previewSettings = n
   const [emailInput, setEmailInput] = useState('');
   const [emailError, setEmailError] = useState('');
   const [registering, setRegistering] = useState(false);
+
+  // New feature states
+  const [currentView, setCurrentView] = useState('chat'); // 'chat' | 'faq'
+  const [faqSearchQuery, setFaqSearchQuery] = useState('');
+  const [expandedFaqId, setExpandedFaqId] = useState(null);
+  const [autoPopupShown, setAutoPopupShown] = useState(false);
+  const [isAnimating, setIsAnimating] = useState(false);
+
+  // Audio context for generating sounds
+  const audioContextRef = useRef(null);
 
   // In preview mode, update settings when previewSettings changes
   useEffect(() => {
@@ -87,6 +97,232 @@ export default function SupportWidget({ previewMode = false, previewSettings = n
     }
   }, [messages, previewMode]);
 
+  // Initialize audio context for sounds (lazy initialization)
+  const getAudioContext = useCallback(() => {
+    if (typeof window === 'undefined') return null;
+    if (!audioContextRef.current) {
+      const AudioContext = window.AudioContext || window.webkitAudioContext;
+      if (AudioContext) {
+        audioContextRef.current = new AudioContext();
+      }
+    }
+    return audioContextRef.current;
+  }, []);
+
+  // Auto-popup trigger effect
+  useEffect(() => {
+    if (previewMode || !settings || !settings.auto_popup_enabled || autoPopupShown || isOpen) return;
+
+    // Check session storage for once-per-session
+    if (settings.auto_popup_once_per_session) {
+      const alreadyShown = sessionStorage.getItem('support_widget_popup_shown');
+      if (alreadyShown) {
+        setAutoPopupShown(true);
+        return;
+      }
+    }
+
+    const trigger = settings.auto_popup_trigger || 'time';
+
+    if (trigger === 'time') {
+      const delay = (settings.auto_popup_delay || 5) * 1000;
+      const timer = setTimeout(() => {
+        handleAutoPopup();
+      }, delay);
+      return () => clearTimeout(timer);
+    }
+
+    if (trigger === 'scroll') {
+      const handleScroll = () => {
+        const scrollPercent = (window.scrollY / (document.documentElement.scrollHeight - window.innerHeight)) * 100;
+        if (scrollPercent >= (settings.auto_popup_scroll_percent || 50)) {
+          handleAutoPopup();
+          window.removeEventListener('scroll', handleScroll);
+        }
+      };
+      window.addEventListener('scroll', handleScroll);
+      return () => window.removeEventListener('scroll', handleScroll);
+    }
+
+    if (trigger === 'exit_intent') {
+      const handleMouseLeave = (e) => {
+        if (e.clientY < 10) {
+          handleAutoPopup();
+          document.removeEventListener('mouseleave', handleMouseLeave);
+        }
+      };
+      document.addEventListener('mouseleave', handleMouseLeave);
+      return () => document.removeEventListener('mouseleave', handleMouseLeave);
+    }
+  }, [previewMode, settings, autoPopupShown, isOpen]);
+
+  const handleAutoPopup = useCallback(() => {
+    if (autoPopupShown) return;
+    setAutoPopupShown(true);
+    setIsOpen(true);
+    playSound('popup');
+    if (settings?.auto_popup_once_per_session) {
+      sessionStorage.setItem('support_widget_popup_shown', 'true');
+    }
+  }, [autoPopupShown, settings]);
+
+  // Play sound effect using Web Audio API
+  const playSound = useCallback((type) => {
+    if (!settings?.sounds_enabled) return;
+
+    const audioContext = getAudioContext();
+    if (!audioContext) return;
+
+    // Resume audio context if suspended (required for autoplay policies)
+    if (audioContext.state === 'suspended') {
+      audioContext.resume();
+    }
+
+    const volume = (settings.sound_volume || 50) / 100;
+
+    try {
+      // Check if the specific sound type is enabled
+      if (type === 'new_message' && !settings.sound_new_message) return;
+      if (type === 'sent' && !settings.sound_message_sent) return;
+      if (type === 'popup' && !settings.sound_popup_open) return;
+
+      // Create oscillator for the sound
+      const oscillator = audioContext.createOscillator();
+      const gainNode = audioContext.createGain();
+
+      oscillator.connect(gainNode);
+      gainNode.connect(audioContext.destination);
+
+      // Set different tones for different sound types
+      if (type === 'new_message') {
+        // Higher pitched double beep for new message
+        oscillator.frequency.setValueAtTime(880, audioContext.currentTime); // A5
+        oscillator.frequency.setValueAtTime(0, audioContext.currentTime + 0.1);
+        oscillator.frequency.setValueAtTime(1046.5, audioContext.currentTime + 0.15); // C6
+        gainNode.gain.setValueAtTime(volume * 0.3, audioContext.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.25);
+        oscillator.start(audioContext.currentTime);
+        oscillator.stop(audioContext.currentTime + 0.25);
+      } else if (type === 'sent') {
+        // Short soft blip for sent message
+        oscillator.frequency.setValueAtTime(523.25, audioContext.currentTime); // C5
+        oscillator.type = 'sine';
+        gainNode.gain.setValueAtTime(volume * 0.2, audioContext.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.1);
+        oscillator.start(audioContext.currentTime);
+        oscillator.stop(audioContext.currentTime + 0.1);
+      } else if (type === 'popup') {
+        // Gentle ascending tone for popup
+        oscillator.frequency.setValueAtTime(440, audioContext.currentTime); // A4
+        oscillator.frequency.linearRampToValueAtTime(659.25, audioContext.currentTime + 0.15); // E5
+        oscillator.type = 'sine';
+        gainNode.gain.setValueAtTime(volume * 0.25, audioContext.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.2);
+        oscillator.start(audioContext.currentTime);
+        oscillator.stop(audioContext.currentTime + 0.2);
+      }
+    } catch (e) {
+      // Ignore audio errors
+    }
+  }, [settings, getAudioContext]);
+
+  // Calculate team online status based on business hours
+  const getTeamStatus = useCallback(() => {
+    if (!settings?.show_team_status) return null;
+    if (!settings?.business_hours_enabled) {
+      return { isOnline: true, text: settings.online_text || 'Online now' };
+    }
+
+    try {
+      const now = new Date();
+      const timezone = settings.business_hours_timezone || 'UTC';
+
+      // Get current time in business timezone
+      const formatter = new Intl.DateTimeFormat('en-US', {
+        timeZone: timezone,
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false,
+        weekday: 'short'
+      });
+
+      const parts = formatter.formatToParts(now);
+      const hour = parseInt(parts.find(p => p.type === 'hour')?.value || '0', 10);
+      const minute = parseInt(parts.find(p => p.type === 'minute')?.value || '0', 10);
+      const weekday = parts.find(p => p.type === 'weekday')?.value || 'Mon';
+
+      // Map weekday to number (0 = Sunday, 1 = Monday, etc.)
+      const weekdayMap = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
+      const currentDay = weekdayMap[weekday] ?? 1;
+
+      // Check if today is a business day
+      const businessDays = settings.business_hours_days || [1, 2, 3, 4, 5];
+      if (!businessDays.includes(currentDay)) {
+        return { isOnline: false, text: settings.away_text || 'Away' };
+      }
+
+      // Parse business hours
+      const [startHour, startMin] = (settings.business_hours_start || '09:00').split(':').map(Number);
+      const [endHour, endMin] = (settings.business_hours_end || '17:00').split(':').map(Number);
+
+      const currentMinutes = hour * 60 + minute;
+      const startMinutes = startHour * 60 + startMin;
+      const endMinutes = endHour * 60 + endMin;
+
+      const isOnline = currentMinutes >= startMinutes && currentMinutes < endMinutes;
+
+      return {
+        isOnline,
+        text: isOnline ? (settings.online_text || 'Online now') : (settings.away_text || 'Away')
+      };
+    } catch (e) {
+      return { isOnline: true, text: settings.online_text || 'Online now' };
+    }
+  }, [settings]);
+
+  // Get animation styles based on settings
+  const getAnimationStyles = useCallback((isOpening) => {
+    const animationType = settings?.animation_type || 'slide_fade';
+    const duration = settings?.animation_duration || 300;
+
+    const baseTransition = `all ${duration}ms cubic-bezier(0.4, 0, 0.2, 1)`;
+
+    if (animationType === 'none') {
+      return {
+        transition: 'none',
+        transform: isOpening ? 'none' : 'none',
+        opacity: isOpening ? 1 : 0
+      };
+    }
+
+    if (animationType === 'fade') {
+      return {
+        transition: baseTransition,
+        transform: 'none',
+        opacity: isOpening ? 1 : 0
+      };
+    }
+
+    if (animationType === 'scale_bounce') {
+      return {
+        transition: `all ${duration}ms cubic-bezier(0.34, 1.56, 0.64, 1)`,
+        transform: isOpening ? 'scale(1)' : 'scale(0.5)',
+        opacity: isOpening ? 1 : 0
+      };
+    }
+
+    // Default: slide_fade
+    const position = settings?.position || 'bottom-right';
+    const translateY = position.includes('top') ? '-20px' : '20px';
+    const translateX = position.includes('left') ? '-20px' : '20px';
+
+    return {
+      transition: baseTransition,
+      transform: isOpening ? 'translate(0, 0)' : `translate(${translateX}, ${translateY})`,
+      opacity: isOpening ? 1 : 0
+    };
+  }, [settings]);
+
   const fetchSettings = async () => {
     try {
       const response = await fetch('/api/support-chat-settings');
@@ -95,46 +331,42 @@ export default function SupportWidget({ previewMode = false, previewSettings = n
         setSettings(data);
       } else {
         // Use default settings if API fails
-        setSettings({
-          id: 1,
-          visibility: 'public',
-          primary_color: '#3B82F6',
-          secondary_color: '#10B981',
-          button_text: 'Support Chat',
-          position: 'bottom-right',
-          is_enabled: true,
-          background_color: '#FFFFFF',
-          header_text_color: '#FFFFFF',
-          customer_text_color: '#FFFFFF',
-          admin_text_color: '#1F2937',
-          border_radius: '12',
-          font_family: 'system-ui',
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        });
+        setSettings(getDefaultSettings());
       }
     } catch (error) {
       console.error('Failed to fetch support chat settings:', error);
-      // Use default settings if API fails
-      setSettings({
-        id: 1,
-        visibility: 'public',
-        primary_color: '#3B82F6',
-        secondary_color: '#10B981',
-        button_text: 'Support Chat',
-        position: 'bottom-right',
-        is_enabled: true,
-        background_color: '#FFFFFF',
-        header_text_color: '#FFFFFF',
-        customer_text_color: '#FFFFFF',
-        admin_text_color: '#1F2937',
-        border_radius: '12',
-        font_family: 'system-ui',
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      });
+      setSettings(getDefaultSettings());
     }
   };
+
+  const getDefaultSettings = () => ({
+    id: 1,
+    visibility: 'public',
+    primary_color: '#3B82F6',
+    secondary_color: '#10B981',
+    button_text: 'Support Chat',
+    position: 'bottom-right',
+    is_enabled: true,
+    background_color: '#FFFFFF',
+    header_text_color: '#FFFFFF',
+    customer_text_color: '#FFFFFF',
+    admin_text_color: '#1F2937',
+    border_radius: '12',
+    font_family: 'system-ui',
+    animation_type: 'slide_fade',
+    animation_duration: 300,
+    show_team_status: true,
+    online_text: 'Online now',
+    away_text: 'Away',
+    response_time_text: 'Typically replies within a few hours',
+    show_message_status: true,
+    show_read_receipts: true,
+    faq_enabled: false,
+    faq_items: [],
+    docs_links: [],
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString()
+  });
 
   const checkVisibility = async () => {
     if (!settings) return;
@@ -251,6 +483,16 @@ export default function SupportWidget({ previewMode = false, previewSettings = n
 
       if (response.ok) {
         const data = await response.json();
+
+        // Check for new messages and play sound
+        if (data.length > messages.length) {
+          const newMsgs = data.slice(messages.length);
+          const hasAdminMessage = newMsgs.some(m => m.sender_type === 'admin');
+          if (hasAdminMessage && messages.length > 0) {
+            playSound('new_message');
+          }
+        }
+
         setMessages(data);
 
         // Mark admin messages as read (only for subscribers)
@@ -316,6 +558,7 @@ export default function SupportWidget({ previewMode = false, previewSettings = n
         const message = await response.json();
         setMessages(prev => [...prev, message]);
         setNewMessage('');
+        playSound('sent');
       } else {
         throw new Error('Failed to send message');
       }
@@ -398,13 +641,55 @@ export default function SupportWidget({ previewMode = false, previewSettings = n
     );
   };
 
+  // Render message status indicator
+  const renderMessageStatus = (message) => {
+    if (!settings?.show_message_status || message.sender_type !== 'customer') return null;
+
+    const isRead = message.read_at || message.is_read;
+    const isDelivered = message.delivered_at || message.is_delivered || true; // Assume delivered if sent
+
+    if (settings.show_read_receipts && isRead) {
+      return (
+        <span className="inline-flex items-center ml-1 opacity-70" title="Read">
+          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+          </svg>
+          <svg className="w-3 h-3 -ml-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+          </svg>
+        </span>
+      );
+    }
+
+    if (isDelivered) {
+      return (
+        <span className="inline-flex items-center ml-1 opacity-70" title="Sent">
+          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+          </svg>
+        </span>
+      );
+    }
+
+    return null;
+  };
+
+  // Filter FAQ items by search query
+  const filteredFaqItems = (settings?.faq_items || []).filter(item => {
+    if (!faqSearchQuery) return true;
+    const query = faqSearchQuery.toLowerCase();
+    return item.question?.toLowerCase().includes(query) || item.answer?.toLowerCase().includes(query);
+  });
+
   // Sample messages for preview mode
   const previewMessages = [
     {
       id: 1,
       sender_type: 'customer',
       message: 'Hi! I have a question about my subscription.',
-      created_at: new Date(Date.now() - 3600000).toISOString()
+      created_at: new Date(Date.now() - 3600000).toISOString(),
+      is_delivered: true,
+      read_at: new Date(Date.now() - 3550000).toISOString()
     },
     {
       id: 2,
@@ -416,16 +701,223 @@ export default function SupportWidget({ previewMode = false, previewSettings = n
       id: 3,
       sender_type: 'customer',
       message: 'How do I upgrade my plan?',
-      created_at: new Date(Date.now() - 3400000).toISOString()
+      created_at: new Date(Date.now() - 3400000).toISOString(),
+      is_delivered: true
     }
   ];
 
   // Get messages to display (preview or real)
   const displayMessages = previewMode ? previewMessages : messages;
 
+  // Get team status for display
+  const teamStatus = getTeamStatus();
+
+  // Handle widget open with animation and sound
+  const handleOpen = () => {
+    setIsAnimating(true);
+    setIsOpen(true);
+    playSound('popup');
+    setTimeout(() => setIsAnimating(false), settings?.animation_duration || 300);
+  };
+
+  // Handle widget close with animation
+  const handleClose = () => {
+    setIsAnimating(true);
+    setTimeout(() => {
+      setIsOpen(false);
+      setIsAnimating(false);
+    }, settings?.animation_duration || 300);
+  };
+
   if (!settings || (!shouldShowWidget && !previewMode)) {
     return null; // Don't render anything if settings aren't loaded or widget shouldn't be shown
   }
+
+  // Render header content (shared between preview and normal mode)
+  const renderHeader = (onClose) => (
+    <div
+      className="p-4 flex justify-between items-center"
+      style={{
+        backgroundColor: settings.primary_color || '#3B82F6',
+        borderTopLeftRadius: `${settings.border_radius || 12}px`,
+        borderTopRightRadius: `${settings.border_radius || 12}px`
+      }}
+    >
+      <div className="flex items-center gap-3">
+        {/* Team Logo */}
+        {settings.team_logo_enabled && settings.team_logo_url && (
+          <img
+            src={settings.team_logo_url}
+            alt="Team Logo"
+            className="w-10 h-10 rounded-full object-cover border-2 border-white/30"
+          />
+        )}
+        <div>
+          <h3 className="font-semibold" style={{ color: settings.header_text_color || '#FFFFFF' }}>
+            {settings.button_text || 'Support Chat'}
+          </h3>
+          {/* Team Status */}
+          {teamStatus && (
+            <div className="flex items-center gap-1.5">
+              <span
+                className={`w-2 h-2 rounded-full ${teamStatus.isOnline ? 'bg-green-400' : 'bg-yellow-400'}`}
+              />
+              <p className="text-xs opacity-90" style={{ color: settings.header_text_color || '#FFFFFF' }}>
+                {teamStatus.text}
+              </p>
+            </div>
+          )}
+          {!teamStatus && settings.response_time_text && (
+            <p className="text-xs opacity-80" style={{ color: settings.header_text_color || '#FFFFFF' }}>
+              {settings.response_time_text}
+            </p>
+          )}
+        </div>
+      </div>
+      <button
+        onClick={onClose}
+        className="opacity-80 hover:opacity-100"
+        style={{ color: settings.header_text_color || '#FFFFFF' }}
+      >
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+        </svg>
+      </button>
+    </div>
+  );
+
+  // Render tab navigation for FAQ
+  const renderTabNav = () => {
+    if (!settings.faq_enabled && !(settings.docs_links?.length > 0)) return null;
+
+    return (
+      <div className="flex border-b border-gray-200">
+        <button
+          onClick={() => setCurrentView('chat')}
+          className={`flex-1 py-2 px-4 text-sm font-medium transition-colors ${
+            currentView === 'chat'
+              ? 'border-b-2 text-blue-600'
+              : 'text-gray-500 hover:text-gray-700'
+          }`}
+          style={currentView === 'chat' ? { borderBottomColor: settings.primary_color } : {}}
+        >
+          Chat
+        </button>
+        <button
+          onClick={() => setCurrentView('faq')}
+          className={`flex-1 py-2 px-4 text-sm font-medium transition-colors ${
+            currentView === 'faq'
+              ? 'border-b-2 text-blue-600'
+              : 'text-gray-500 hover:text-gray-700'
+          }`}
+          style={currentView === 'faq' ? { borderBottomColor: settings.primary_color } : {}}
+        >
+          Help
+        </button>
+      </div>
+    );
+  };
+
+  // Render FAQ section
+  const renderFaqSection = () => (
+    <div className="flex-1 overflow-y-auto p-4">
+      {/* FAQ Search */}
+      {settings.show_search_in_chat && (
+        <div className="mb-4">
+          <div className="relative">
+            <input
+              type="text"
+              value={faqSearchQuery}
+              onChange={(e) => setFaqSearchQuery(e.target.value)}
+              placeholder="Search help articles..."
+              className="w-full px-3 py-2 pl-9 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+            />
+            <svg className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+          </div>
+        </div>
+      )}
+
+      {/* FAQ Title */}
+      {settings.faq_enabled && (
+        <h4 className="text-sm font-semibold text-gray-700 mb-3">
+          {settings.faq_title || 'Frequently Asked Questions'}
+        </h4>
+      )}
+
+      {/* FAQ Items */}
+      {settings.faq_enabled && filteredFaqItems.length > 0 && (
+        <div className="space-y-2 mb-4">
+          {filteredFaqItems.map((item, idx) => (
+            <div key={item.id || idx} className="border border-gray-200 rounded-lg overflow-hidden">
+              <button
+                onClick={() => setExpandedFaqId(expandedFaqId === (item.id || idx) ? null : (item.id || idx))}
+                className="w-full flex items-center justify-between p-3 text-left hover:bg-gray-50 transition-colors"
+              >
+                <span className="text-sm font-medium text-gray-700">{item.question}</span>
+                <svg
+                  className={`w-4 h-4 text-gray-500 transition-transform ${expandedFaqId === (item.id || idx) ? 'rotate-180' : ''}`}
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+              {expandedFaqId === (item.id || idx) && (
+                <div className="px-3 pb-3 text-sm text-gray-600 border-t border-gray-100 pt-2">
+                  {item.answer}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {settings.faq_enabled && filteredFaqItems.length === 0 && faqSearchQuery && (
+        <p className="text-sm text-gray-500 mb-4">No results found for &ldquo;{faqSearchQuery}&rdquo;</p>
+      )}
+
+      {/* Docs Links */}
+      {settings.docs_links?.length > 0 && (
+        <>
+          <h4 className="text-sm font-semibold text-gray-700 mb-3 mt-4">Documentation</h4>
+          <div className="space-y-2">
+            {settings.docs_links.map((link, idx) => (
+              <a
+                key={link.id || idx}
+                href={link.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-2 p-3 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors text-sm"
+              >
+                <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                <span className="text-gray-700">{link.title}</span>
+                <svg className="w-3 h-3 text-gray-400 ml-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                </svg>
+              </a>
+            ))}
+          </div>
+        </>
+      )}
+
+      {/* Contact us prompt */}
+      <div className="mt-4 p-3 bg-gray-50 rounded-lg text-center">
+        <p className="text-sm text-gray-600 mb-2">Can&apos;t find what you&apos;re looking for?</p>
+        <button
+          onClick={() => setCurrentView('chat')}
+          className="text-sm font-medium hover:underline"
+          style={{ color: settings.primary_color }}
+        >
+          Chat with us →
+        </button>
+      </div>
+    </div>
+  );
 
   // Preview mode renders just the panel (no fixed positioning, no backdrop, always open)
   if (previewMode) {
@@ -438,103 +930,87 @@ export default function SupportWidget({ previewMode = false, previewSettings = n
           fontFamily: settings.font_family || 'system-ui'
         }}
       >
-        {/* Header */}
-        <div
-          className="p-4 flex justify-between items-center"
-          style={{
-            backgroundColor: settings.primary_color || '#3B82F6',
-            borderTopLeftRadius: `${settings.border_radius || 12}px`,
-            borderTopRightRadius: `${settings.border_radius || 12}px`
-          }}
-        >
-          <div>
-            <h3 className="font-semibold" style={{ color: settings.header_text_color || '#FFFFFF' }}>
-              {settings.button_text || 'Support Chat'}
-            </h3>
-            <p className="text-xs opacity-80" style={{ color: settings.header_text_color || '#FFFFFF' }}>
-              We typically reply within a few hours
-            </p>
-          </div>
-          <button
-            className="opacity-80 hover:opacity-100 cursor-default"
-            style={{ color: settings.header_text_color || '#FFFFFF' }}
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
+        {renderHeader(() => {})}
+        {renderTabNav()}
 
-        {/* Preview Messages */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-4">
-          {displayMessages.map((message) => {
-            const isCustomer = message.sender_type === 'customer';
-            const msgTextColor = isCustomer
-              ? (settings.customer_text_color || '#FFFFFF')
-              : (settings.admin_text_color || '#1F2937');
+        {currentView === 'faq' ? renderFaqSection() : (
+          <>
+            {/* Preview Messages */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-4">
+              {displayMessages.map((message) => {
+                const isCustomer = message.sender_type === 'customer';
+                const msgTextColor = isCustomer
+                  ? (settings.customer_text_color || '#FFFFFF')
+                  : (settings.admin_text_color || '#1F2937');
 
-            return (
-              <div key={message.id} className={`flex ${isCustomer ? 'justify-end' : 'justify-start'}`}>
-                <div
-                  className={`max-w-xs px-4 py-2 rounded-lg ${
-                    isCustomer ? 'rounded-br-none' : 'rounded-bl-none'
-                  }`}
+                return (
+                  <div key={message.id} className={`flex ${isCustomer ? 'justify-end' : 'justify-start'}`}>
+                    <div
+                      className={`max-w-xs px-4 py-2 rounded-lg ${
+                        isCustomer ? 'rounded-br-none' : 'rounded-bl-none'
+                      }`}
+                      style={{
+                        backgroundColor: isCustomer ? (settings.primary_color || '#3B82F6') : (settings.secondary_color || '#10B981'),
+                        color: msgTextColor
+                      }}
+                    >
+                      <p className="text-sm">{message.message}</p>
+                      <p
+                        className="text-xs mt-1 opacity-70 flex items-center"
+                        style={{ color: msgTextColor }}
+                      >
+                        {formatTime(message.created_at)}
+                        {renderMessageStatus(message)}
+                      </p>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Message Input (preview only, not functional) */}
+            <div className="p-4 border-t border-gray-200">
+              <div className="flex space-x-2">
+                <input
+                  type="text"
+                  placeholder="Type your message..."
+                  disabled
+                  className="flex-1 px-3 py-2 border border-gray-300 rounded-md bg-gray-50 cursor-not-allowed"
+                />
+                <button
+                  disabled
+                  className="px-4 py-2 rounded-md cursor-not-allowed"
                   style={{
-                    backgroundColor: isCustomer ? (settings.primary_color || '#3B82F6') : (settings.secondary_color || '#10B981'),
-                    color: msgTextColor
+                    backgroundColor: settings.primary_color || '#3B82F6',
+                    color: 'white'
                   }}
                 >
-                  <p className="text-sm">{message.message}</p>
-                  <p
-                    className="text-xs mt-1 opacity-70"
-                    style={{ color: msgTextColor }}
-                  >
-                    {formatTime(message.created_at)}
-                  </p>
-                </div>
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                  </svg>
+                </button>
               </div>
-            );
-          })}
-        </div>
-
-        {/* Message Input (preview only, not functional) */}
-        <div className="p-4 border-t border-gray-200">
-          <div className="flex space-x-2">
-            <input
-              type="text"
-              placeholder="Type your message..."
-              disabled
-              className="flex-1 px-3 py-2 border border-gray-300 rounded-md bg-gray-50 cursor-not-allowed"
-            />
-            <button
-              disabled
-              className="px-4 py-2 rounded-md cursor-not-allowed"
-              style={{
-                backgroundColor: settings.primary_color || '#3B82F6',
-                color: 'white'
-              }}
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
-              </svg>
-            </button>
-          </div>
-        </div>
+            </div>
+          </>
+        )}
       </div>
     );
   }
 
   // Normal mode - full functionality with fixed positioning
+  const animationStyles = getAnimationStyles(isOpen);
+
   return (
     <>
       {/* Support Widget Button */}
       <button
-        onClick={() => setIsOpen(true)}
-        className={`fixed w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition-all duration-300 z-40 ${
-          isOpen ? 'scale-0' : 'scale-100'
-        } ${getPositionClasses()}`}
+        onClick={handleOpen}
+        className={`fixed w-14 h-14 rounded-full shadow-lg flex items-center justify-center z-40 ${getPositionClasses()}`}
         style={{
           backgroundColor: settings.primary_color,
+          transition: `all ${settings.animation_duration || 300}ms cubic-bezier(0.4, 0, 0.2, 1)`,
+          transform: isOpen ? 'scale(0)' : 'scale(1)',
+          opacity: isOpen ? 0 : 1
         }}
       >
         {renderIcon()}
@@ -547,181 +1023,169 @@ export default function SupportWidget({ previewMode = false, previewSettings = n
 
       {/* Support Widget Panel */}
       <div
-        className={`fixed w-96 h-[600px] shadow-2xl transition-all duration-300 z-50 ${
-          isOpen ? 'scale-100 opacity-100' : 'scale-0 opacity-0'
-        } flex flex-col ${getPositionClasses()}`}
+        className={`fixed w-96 h-[600px] shadow-2xl z-50 flex flex-col ${getPositionClasses()}`}
         style={{
           backgroundColor: settings.background_color || '#FFFFFF',
           borderRadius: `${settings.border_radius || 12}px`,
-          fontFamily: settings.font_family || 'system-ui'
+          fontFamily: settings.font_family || 'system-ui',
+          ...animationStyles,
+          pointerEvents: isOpen ? 'auto' : 'none'
         }}
       >
-        {/* Header */}
-        <div
-          className="p-4 flex justify-between items-center"
-          style={{
-            backgroundColor: settings.primary_color,
-            borderTopLeftRadius: `${settings.border_radius || 12}px`,
-            borderTopRightRadius: `${settings.border_radius || 12}px`
-          }}
-        >
-          <div>
-            <h3 className="font-semibold" style={{ color: settings.header_text_color || '#FFFFFF' }}>
-              {settings.button_text || 'Support Chat'}
-            </h3>
-            <p className="text-xs opacity-80" style={{ color: settings.header_text_color || '#FFFFFF' }}>
-              We typically reply within a few hours
-            </p>
-          </div>
-          <button
-            onClick={() => setIsOpen(false)}
-            className="opacity-80 hover:opacity-100"
-            style={{ color: settings.header_text_color || '#FFFFFF' }}
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
+        {renderHeader(handleClose)}
+        {renderTabNav()}
 
-        {/* Messages or Email Form */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-4">
-          {showEmailForm && !userEmail ? (
-            <div className="flex flex-col items-center justify-center h-full">
-              <svg className="w-12 h-12 mb-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-              </svg>
-              <h4 className="text-lg font-semibold text-gray-700 mb-2">Enter your email to chat</h4>
-              <p className="text-sm text-gray-500 mb-4 text-center">We'll use this to send you replies</p>
-              <form onSubmit={handleEmailSubmit} className="w-full max-w-xs">
-                <input
-                  type="email"
-                  value={emailInput}
-                  onChange={(e) => setEmailInput(e.target.value)}
-                  placeholder="your@email.com"
-                  disabled={registering}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 mb-2"
-                />
-                {emailError && (
-                  <p className="text-red-500 text-xs mb-2">{emailError}</p>
-                )}
-                <button
-                  type="submit"
-                  disabled={registering}
-                  className="w-full px-4 py-2 rounded-md text-white disabled:opacity-50"
-                  style={{ backgroundColor: settings?.primary_color || '#3B82F6' }}
-                >
-                  {registering ? 'Starting...' : 'Start Chat'}
-                </button>
-              </form>
-            </div>
-          ) : messages.length === 0 ? (
-            <div className="text-center text-gray-500 mt-8">
-              {settings.greeting_message ? (
-                <div className="bg-gray-100 rounded-lg p-4 mb-6 text-left">
-                  <div className="flex items-start gap-3">
-                    <div
-                      className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
-                      style={{ backgroundColor: settings.secondary_color }}
+        {currentView === 'faq' ? renderFaqSection() : (
+          <>
+            {/* Messages or Email Form */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-4">
+              {showEmailForm && !userEmail ? (
+                <div className="flex flex-col items-center justify-center h-full">
+                  <svg className="w-12 h-12 mb-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                  </svg>
+                  <h4 className="text-lg font-semibold text-gray-700 mb-2">Enter your email to chat</h4>
+                  <p className="text-sm text-gray-500 mb-4 text-center">We&apos;ll use this to send you replies</p>
+                  <form onSubmit={handleEmailSubmit} className="w-full max-w-xs">
+                    <input
+                      type="email"
+                      value={emailInput}
+                      onChange={(e) => setEmailInput(e.target.value)}
+                      placeholder="your@email.com"
+                      disabled={registering}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 mb-2"
+                    />
+                    {emailError && (
+                      <p className="text-red-500 text-xs mb-2">{emailError}</p>
+                    )}
+                    <button
+                      type="submit"
+                      disabled={registering}
+                      className="w-full px-4 py-2 rounded-md text-white disabled:opacity-50"
+                      style={{ backgroundColor: settings?.primary_color || '#3B82F6' }}
                     >
-                      <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                      {registering ? 'Starting...' : 'Start Chat'}
+                    </button>
+                  </form>
+                </div>
+              ) : messages.length === 0 ? (
+                <div className="text-center text-gray-500 mt-8">
+                  {settings.greeting_message ? (
+                    <div className="bg-gray-100 rounded-lg p-4 mb-6 text-left">
+                      <div className="flex items-start gap-3">
+                        {settings.team_logo_enabled && settings.team_logo_url ? (
+                          <img
+                            src={settings.team_logo_url}
+                            alt="Team"
+                            className="w-8 h-8 rounded-full object-cover flex-shrink-0"
+                          />
+                        ) : (
+                          <div
+                            className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
+                            style={{ backgroundColor: settings.secondary_color }}
+                          >
+                            <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                            </svg>
+                          </div>
+                        )}
+                        <div>
+                          <p className="text-gray-700 text-sm">{settings.greeting_message}</p>
+                          <p className="text-xs text-gray-400 mt-1">Support Team</p>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      <svg className="w-12 h-12 mx-auto mb-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
                       </svg>
-                    </div>
-                    <div>
-                      <p className="text-gray-700 text-sm">{settings.greeting_message}</p>
-                      <p className="text-xs text-gray-400 mt-1">Support Team</p>
-                    </div>
-                  </div>
+                    </>
+                  )}
+                  <p className="text-sm">Send us a message!</p>
+                  <p className="text-xs text-gray-400">We&apos;re here to help with any questions.</p>
                 </div>
               ) : (
                 <>
-                  <svg className="w-12 h-12 mx-auto mb-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-                  </svg>
+                  {messages.map((message, index) => {
+                    const showDate = index === 0 ||
+                      formatDate(messages[index - 1].created_at) !== formatDate(message.created_at);
+                    const isCustomer = message.sender_type === 'customer';
+                    const msgTextColor = isCustomer
+                      ? (settings.customer_text_color || '#FFFFFF')
+                      : (settings.admin_text_color || '#1F2937');
+
+                    return (
+                      <div key={message.id}>
+                        {showDate && (
+                          <div className="text-center text-xs text-gray-500 my-2">
+                            {formatDate(message.created_at)}
+                          </div>
+                        )}
+                        <div className={`flex ${isCustomer ? 'justify-end' : 'justify-start'}`}>
+                          <div
+                            className={`max-w-xs px-4 py-2 rounded-lg ${
+                              isCustomer ? 'rounded-br-none' : 'rounded-bl-none'
+                            }`}
+                            style={{
+                              backgroundColor: isCustomer ? settings.primary_color : settings.secondary_color,
+                              color: msgTextColor
+                            }}
+                          >
+                            <p className="text-sm">{message.message}</p>
+                            <p
+                              className="text-xs mt-1 opacity-70 flex items-center"
+                              style={{ color: msgTextColor }}
+                            >
+                              {formatTime(message.created_at)}
+                              {renderMessageStatus(message)}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                  <div ref={messagesEndRef} />
                 </>
               )}
-              <p className="text-sm">Send us a message!</p>
-              <p className="text-xs text-gray-400">We're here to help with any questions.</p>
             </div>
-          ) : (
-            <>
-              {messages.map((message, index) => {
-                const showDate = index === 0 ||
-                  formatDate(messages[index - 1].created_at) !== formatDate(message.created_at);
-                const isCustomer = message.sender_type === 'customer';
-                const msgTextColor = isCustomer
-                  ? (settings.customer_text_color || '#FFFFFF')
-                  : (settings.admin_text_color || '#1F2937');
 
-                return (
-                  <div key={message.id}>
-                    {showDate && (
-                      <div className="text-center text-xs text-gray-500 my-2">
-                        {formatDate(message.created_at)}
-                      </div>
+            {/* Message Input - Only show if user has email */}
+            {!showEmailForm && userEmail && (
+              <form onSubmit={sendMessage} className="p-4 border-t border-gray-200">
+                <div className="flex space-x-2">
+                  <input
+                    type="text"
+                    value={newMessage}
+                    onChange={(e) => setNewMessage(e.target.value)}
+                    placeholder="Type your message..."
+                    disabled={loading}
+                    className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100"
+                  />
+                  <button
+                    type="submit"
+                    disabled={!newMessage.trim() || loading}
+                    className="px-4 py-2 rounded-md disabled:bg-gray-300 disabled:cursor-not-allowed"
+                    style={{
+                      backgroundColor: settings.primary_color,
+                      color: 'white'
+                    }}
+                  >
+                    {loading ? (
+                      <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                    ) : (
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                      </svg>
                     )}
-                    <div className={`flex ${isCustomer ? 'justify-end' : 'justify-start'}`}>
-                      <div
-                        className={`max-w-xs px-4 py-2 rounded-lg ${
-                          isCustomer ? 'rounded-br-none' : 'rounded-bl-none'
-                        }`}
-                        style={{
-                          backgroundColor: isCustomer ? settings.primary_color : settings.secondary_color,
-                          color: msgTextColor
-                        }}
-                      >
-                        <p className="text-sm">{message.message}</p>
-                        <p
-                          className="text-xs mt-1 opacity-70"
-                          style={{ color: msgTextColor }}
-                        >
-                          {formatTime(message.created_at)}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-              <div ref={messagesEndRef} />
-            </>
-          )}
-        </div>
-
-        {/* Message Input - Only show if user has email */}
-        {!showEmailForm && userEmail && (
-          <form onSubmit={sendMessage} className="p-4 border-t border-gray-200">
-            <div className="flex space-x-2">
-              <input
-                type="text"
-                value={newMessage}
-                onChange={(e) => setNewMessage(e.target.value)}
-                placeholder="Type your message..."
-                disabled={loading}
-                className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100"
-              />
-              <button
-                type="submit"
-                disabled={!newMessage.trim() || loading}
-                className="px-4 py-2 rounded-md disabled:bg-gray-300 disabled:cursor-not-allowed"
-                style={{
-                  backgroundColor: settings.primary_color,
-                  color: 'white'
-                }}
-              >
-                {loading ? (
-                  <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
-                ) : (
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
-                  </svg>
-                )}
-              </button>
-            </div>
-          </form>
+                  </button>
+                </div>
+              </form>
+            )}
+          </>
         )}
       </div>
 
@@ -729,7 +1193,11 @@ export default function SupportWidget({ previewMode = false, previewSettings = n
       {isOpen && (
         <div
           className="fixed inset-0 bg-black bg-opacity-25 z-30"
-          onClick={() => setIsOpen(false)}
+          onClick={handleClose}
+          style={{
+            transition: `opacity ${settings.animation_duration || 300}ms ease`,
+            opacity: isOpen ? 1 : 0
+          }}
         />
       )}
     </>

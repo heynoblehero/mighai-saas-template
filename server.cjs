@@ -13,6 +13,7 @@ const sqlite3 = require('sqlite3').verbose();
 const path = require('path');
 const axios = require('axios');
 const { v4: uuidv4 } = require('uuid');
+const jwt = require('jsonwebtoken');
 const multer = require('multer');
 const fs = require('fs');
 
@@ -1355,12 +1356,30 @@ nextApp.prepare()
     if (req.user.role !== 'admin') {
       return res.status(403).json({ error: 'Admin access required' });
     }
+
+    // Generate JWT token for API routes
+    const token = jwt.sign(
+      { id: req.user.id, username: req.user.username, email: req.user.email, role: req.user.role },
+      process.env.JWT_SECRET || 'fallback-secret',
+      { expiresIn: '7d' }
+    );
+
+    // Set token cookie for Next.js API routes
+    res.cookie('token', token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+    });
+
     res.json({ user: { id: req.user.id, username: req.user.username, email: req.user.email, role: req.user.role } });
   });
 
   server.post('/api/auth/logout', (req, res) => {
     req.logout((err) => {
       if (err) return res.status(500).json({ error: 'Logout failed' });
+      // Clear the JWT token cookie
+      res.clearCookie('token');
       res.json({ message: 'Logged out successfully' });
     });
   });

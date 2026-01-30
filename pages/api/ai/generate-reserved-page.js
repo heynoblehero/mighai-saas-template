@@ -103,9 +103,15 @@ function ensureCompleteHTML(html, pageTitle = 'Page') {
 </html>`;
 }
 
+// Pages with complete design freedom - only require login/signup links
+const DESIGN_FREEDOM_PAGES = ['landing-page', 'pricing-page', 'about-page', 'blog-homepage'];
+
+// Pages with flexible styling but must keep forms and API calls working
+const FLEXIBLE_STYLING_PAGES = ['customer-login', 'customer-signup', 'password-reset', 'contact-page'];
+
 /**
  * Generate system prompt for reserved pages
- * Simplified - only includes essential requirements, not style restrictions
+ * Handles different flexibility levels based on page type
  */
 function generateSystemPrompt(pageType, rules, aiContext) {
   const pageRules = rules[pageType];
@@ -114,6 +120,102 @@ function generateSystemPrompt(pageType, rules, aiContext) {
   const routes = aiContext.routes || {};
   const apis = aiContext.api_endpoints || {};
 
+  // Full design freedom pages - only require login/signup links
+  if (DESIGN_FREEDOM_PAGES.includes(pageType)) {
+    let apiNote = '';
+    if (pageRules.required_functionality?.length > 0) {
+      const func = pageRules.required_functionality[0];
+      apiNote = `\n\n## API INTEGRATION (if applicable):
+- Fetch data from: ${func.api_endpoint || 'N/A'}
+- Display the data creatively in your design`;
+    }
+
+    return `You are an expert web developer creating a ${pageRules.name} for a SaaS product.
+
+## COMPLETE DESIGN FREEDOM
+You have COMPLETE creative freedom to design any ${pageRules.name.toLowerCase()} layout. Create whatever design best fits the user's description:
+- Any layout structure, sections, and components
+- Any animations, colors, and styling
+- Custom sections based on the user's vision
+${apiNote}
+
+## ONLY REQUIREMENTS (must include somewhere on the page):
+1. A link to the login page: href="/subscribe/login" (for existing customers)
+2. A link to the signup page: href="/subscribe/signup" (for new customers)
+
+These can be styled as buttons, nav links, CTAs, or any other element.
+
+## AVAILABLE ROUTES:
+${routes.route_mappings ? Object.entries(routes.route_mappings).map(([key, route]) => `- "${key}" → "${route}"`).join('\n') : ''}
+
+## OUTPUT FORMAT:
+Generate a complete HTML document with:
+- <!DOCTYPE html>
+- Tailwind CSS CDN
+- The two required links (login and signup)
+- Responsive design
+- Any creative layout the user requests
+
+## DO NOT INCLUDE (already handled globally):
+- Analytics tracking
+- Heatmap tracking
+- Support chat widget
+
+Follow the user's creative direction completely. No markdown code blocks - just HTML.`;
+  }
+
+  // Flexible styling pages - keep forms/APIs but allow creative design
+  if (FLEXIBLE_STYLING_PAGES.includes(pageType)) {
+    let formFields = '';
+    pageRules.required_elements?.forEach(element => {
+      if (element.type === 'input' || element.type === 'textarea') {
+        formFields += `\n- ${element.type}: name="${element.name}" (${element.input_type || 'text'}) - ${element.description}`;
+      }
+    });
+
+    let apiCalls = '';
+    pageRules.required_functionality?.forEach(func => {
+      if (func.api_endpoint) {
+        apiCalls += `\n- ${func.name}(): ${func.method} ${func.api_endpoint}`;
+        if (func.required_fields) apiCalls += ` (fields: ${func.required_fields.join(', ')})`;
+        if (func.success_redirect) apiCalls += ` → redirect to ${func.success_redirect}`;
+      }
+    });
+
+    return `You are an expert web developer creating a ${pageRules.name} for a SaaS product.
+
+## FLEXIBLE STYLING
+You have COMPLETE FREEDOM for the visual design and layout. Style this page however you want - dark theme, light theme, gradients, animations, any layout structure.
+
+## FUNCTIONAL REQUIREMENTS (must work correctly):
+The page must include a working form with these fields:${formFields}
+
+## API INTEGRATION (must implement):${apiCalls}
+
+## LINKS TO INCLUDE:
+${pageRules.required_elements?.filter(el => el.type === 'link').map(el => `- Link to: ${el.href}`).join('\n') || '- Link to /subscribe/login or /subscribe/signup as appropriate'}
+
+## AVAILABLE ROUTES:
+${routes.route_mappings ? Object.entries(routes.route_mappings).map(([key, route]) => `- "${key}" → "${route}"`).join('\n') : ''}
+
+## OUTPUT FORMAT:
+Generate a complete HTML document with:
+- <!DOCTYPE html>
+- Tailwind CSS CDN
+- Working form with proper API integration
+- Loading states and error handling
+- Responsive design
+- Any creative styling you want
+
+## DO NOT INCLUDE (already handled globally):
+- Analytics tracking
+- Heatmap tracking
+- Support chat widget
+
+Style the page creatively while ensuring the form functionality works. No markdown code blocks - just HTML.`;
+  }
+
+  // Standard handling for other page types (dashboard pages, etc.)
   let systemPrompt = `You are an expert web developer creating a ${pageRules.name}.
 
 ## Page Description:

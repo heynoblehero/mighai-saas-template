@@ -1,53 +1,40 @@
 {
   "customer-login": {
     "name": "Customer Login Page",
-    "description": "Customer login page with email/password authentication",
+    "description": "Login page with flexible styling - must include working login form",
+    "flexible_styling": true,
     "required_elements": [
       {
         "type": "form",
-        "id": "loginForm",
         "action": "handleSubmit",
-        "method": "prevent_default",
         "required": true,
-        "description": "Main login form that handles authentication"
+        "description": "Login form - any styling, must submit to API"
       },
       {
         "type": "input",
-        "id": "email",
         "name": "email",
         "input_type": "email",
         "required": true,
-        "validation": "email_format",
-        "description": "Email input field for user authentication"
+        "description": "Email input field"
       },
       {
-        "type": "input", 
-        "id": "password",
+        "type": "input",
         "name": "password",
         "input_type": "password",
         "required": true,
-        "description": "Password input field for user authentication"
+        "description": "Password input field"
       },
       {
         "type": "button",
-        "id": "submitButton",
         "button_type": "submit",
         "required": true,
-        "description": "Submit button to trigger login process"
+        "description": "Submit button"
       },
       {
         "type": "link",
-        "id": "signupLink",
         "href": "/subscribe/signup",
         "required": true,
-        "description": "Link to registration page for new users"
-      },
-      {
-        "type": "link",
-        "id": "homeLink", 
-        "href": "/",
-        "required": false,
-        "description": "Link back to home page"
+        "description": "Link to signup page"
       }
     ],
     "required_functionality": [
@@ -58,42 +45,31 @@
         "method": "POST",
         "required_fields": ["email", "password"],
         "success_redirect": "/dashboard",
-        "error_handling": "display_error_message"
-      },
-      {
-        "name": "loading_state",
-        "description": "Show loading indicator during authentication",
-        "required": true
-      },
-      {
-        "name": "error_display",
-        "description": "Display error messages from API responses",
         "required": true
       }
     ],
     "styling_guidelines": [
-      "Responsive design for mobile and desktop",
-      "Form validation indicators",
-      "Loading states for buttons",
-      "Error message styling",
-      "Professional and trustworthy appearance"
+      "Flexible styling - design the page layout however you want",
+      "Must include working login form with email/password fields",
+      "Form must POST to /api/subscribe/login",
+      "On success, redirect to /dashboard",
+      "Include link to signup page",
+      "Responsive design for mobile and desktop"
     ]
   },
   "customer-signup": {
     "name": "Customer Signup Page",
-    "description": "Customer registration page with OTP verification",
+    "description": "Signup page with flexible styling - must include working signup form with OTP",
+    "flexible_styling": true,
     "required_elements": [
       {
         "type": "form",
-        "id": "signupForm",
         "action": "handleSubmit",
-        "method": "prevent_default",
         "required": true,
-        "description": "Main signup form"
+        "description": "Signup form - any styling, must submit to API"
       },
       {
         "type": "input",
-        "id": "username",
         "name": "username",
         "input_type": "text",
         "required": true,
@@ -101,60 +77,41 @@
       },
       {
         "type": "input",
-        "id": "email",
-        "name": "email", 
+        "name": "email",
         "input_type": "email",
         "required": true,
-        "validation": "email_format",
         "description": "Email input field"
       },
       {
         "type": "input",
-        "id": "password",
         "name": "password",
         "input_type": "password",
         "required": true,
-        "validation": "min_length_6",
         "description": "Password input field"
       },
       {
         "type": "input",
-        "id": "confirmPassword",
         "name": "confirmPassword",
-        "input_type": "password", 
+        "input_type": "password",
         "required": true,
-        "validation": "match_password",
-        "description": "Confirm password input field"
+        "description": "Confirm password field"
       },
       {
         "type": "button",
-        "id": "submitButton",
         "button_type": "submit",
         "required": true,
-        "description": "Submit button for registration"
-      },
-      {
-        "type": "form",
-        "id": "otpForm",
-        "action": "handleOTPSubmit",
-        "conditional": "step_verify",
-        "required": true,
-        "description": "OTP verification form"
+        "description": "Submit button"
       },
       {
         "type": "input",
-        "id": "otp",
         "name": "otp",
         "input_type": "text",
-        "maxlength": "6",
-        "pattern": "[0-9]{6}",
-        "conditional": "step_verify",
+        "conditional": "otp_step",
         "required": true,
-        "description": "OTP verification input"
+        "description": "OTP verification input (shown after initial submit)"
       },
       {
         "type": "link",
-        "id": "loginLink",
         "href": "/subscribe/login",
         "required": true,
         "description": "Link to login page"
@@ -163,32 +120,36 @@
     "required_functionality": [
       {
         "name": "handleSubmit",
-        "description": "Handle signup form submission and OTP sending",
+        "description": "Handle signup form - sends OTP to email",
         "api_endpoint": "/api/subscribe/send-signup-otp",
         "method": "POST",
         "required_fields": ["username", "email", "password"],
-        "success_action": "show_otp_step"
+        "required": true
       },
       {
         "name": "handleOTPSubmit",
-        "description": "Handle OTP verification",
-        "api_endpoint": "/api/subscribe/verify-signup-otp", 
+        "description": "Verify OTP and complete signup",
+        "api_endpoint": "/api/subscribe/verify-signup-otp",
         "method": "POST",
         "required_fields": ["username", "email", "password", "otp"],
-        "success_redirect": "/subscribe/login?message=Account created successfully"
+        "success_redirect": "/subscribe/login?message=Account created successfully",
+        "required": true
       },
       {
         "name": "resendOTP",
-        "description": "Resend OTP verification code",
+        "description": "Resend OTP code",
         "api_endpoint": "/api/subscribe/resend-signup-otp",
         "method": "POST",
-        "required_fields": ["email"]
-      },
-      {
-        "name": "step_management",
-        "description": "Manage signup/verify steps",
+        "required_fields": ["email"],
         "required": true
       }
+    ],
+    "styling_guidelines": [
+      "Flexible styling - design the page layout however you want",
+      "Must include signup form with username, email, password, confirmPassword",
+      "Must handle two-step flow: 1) Submit form sends OTP, 2) Enter OTP to verify",
+      "Include link to login page",
+      "Responsive design for mobile and desktop"
     ]
   },
   "customer-dashboard": {
@@ -398,36 +359,33 @@
   },
   "password-reset": {
     "name": "Password Reset Page",
-    "description": "Password reset functionality for customers",
+    "description": "Password reset page with flexible styling - must include working reset form",
+    "flexible_styling": true,
     "required_elements": [
       {
         "type": "form",
-        "id": "resetForm",
         "action": "handleSubmit",
         "required": true,
-        "description": "Password reset request form"
+        "description": "Password reset form - any styling, must submit to API"
       },
       {
         "type": "input",
-        "id": "email",
         "name": "email",
         "input_type": "email",
         "required": true,
-        "description": "Email input for password reset"
+        "description": "Email input field"
       },
       {
         "type": "button",
-        "id": "submitButton",
-        "button_type": "submit", 
+        "button_type": "submit",
         "required": true,
-        "description": "Send reset email button"
+        "description": "Submit button"
       },
       {
         "type": "link",
-        "id": "loginLink",
         "href": "/subscribe/login",
         "required": true,
-        "description": "Back to login link"
+        "description": "Link back to login"
       }
     ],
     "required_functionality": [
@@ -437,8 +395,15 @@
         "api_endpoint": "/api/auth/reset-password",
         "method": "POST",
         "required_fields": ["email"],
-        "success_message": "Password reset email sent"
+        "required": true
       }
+    ],
+    "styling_guidelines": [
+      "Flexible styling - design the page layout however you want",
+      "Must include email input and submit button",
+      "Form must POST to /api/auth/reset-password",
+      "Include link back to login page",
+      "Responsive design for mobile and desktop"
     ]
   },
   "customer-layout-sidebar": {
@@ -685,73 +650,33 @@
   },
   "landing-page": {
     "name": "Landing Page",
-    "description": "Main landing page with deployment instructions and platform overview",
+    "description": "Main landing page for your SaaS - complete design freedom with only essential navigation links required",
     "layout_type": "public_layout",
     "content_area": "landing_content",
     "required_elements": [
       {
-        "type": "component",
-        "id": "heroSection",
+        "type": "link",
+        "id": "loginLink",
+        "href": "/subscribe/login",
         "required": true,
-        "description": "Hero section with platform title and deployment instructions",
-        "protection_level": "medium"
-      },
-      {
-        "type": "component",
-        "id": "deploymentInstructions",
-        "required": true,
-        "description": "Step-by-step deployment instructions and curl command",
-        "protection_level": "high"
-      },
-      {
-        "type": "component",
-        "id": "featuresSection",
-        "required": true,
-        "description": "Platform features and capabilities overview",
-        "protection_level": "low"
-      },
-      {
-        "type": "component",
-        "id": "getStartedSection",
-        "required": true,
-        "description": "Get started links to admin panel and customer portal",
-        "protection_level": "medium"
+        "description": "Link to login page for existing customers"
       },
       {
         "type": "link",
-        "id": "adminLink",
-        "href": "/admin",
-        "required": true,
-        "description": "Link to admin panel"
-      },
-      {
-        "type": "link",
-        "id": "customerLink",
+        "id": "signupLink",
         "href": "/subscribe/signup",
         "required": true,
-        "description": "Link to customer signup"
+        "description": "Link to signup page for new customers"
       }
     ],
-    "required_functionality": [
-      {
-        "name": "copyToClipboard",
-        "description": "Copy deployment command to clipboard",
-        "required": true
-      },
-      {
-        "name": "checkSystemStatus",
-        "description": "Check if system is properly configured",
-        "api_endpoint": "/api/health",
-        "method": "GET",
-        "required": false
-      }
-    ],
+    "required_functionality": [],
     "styling_guidelines": [
+      "Complete design freedom - create any layout that fits your SaaS",
       "Professional and modern design",
-      "Clear deployment instructions",
-      "Responsive layout",
-      "Good contrast and readability",
-      "Call-to-action buttons"
+      "Responsive layout for mobile and desktop",
+      "Must include login link for existing customers",
+      "Must include signup link for new customers",
+      "Focus on your unique value proposition and branding"
     ]
   },
   "customer-ai-services": {
@@ -962,132 +887,89 @@
   },
   "pricing-page": {
     "name": "Pricing Page",
-    "description": "Pricing tiers comparison page with subscription options",
+    "description": "Pricing page for your SaaS - complete design freedom with plan data from API",
     "layout_type": "public_layout",
     "content_area": "pricing_content",
+    "design_freedom": true,
     "required_elements": [
       {
-        "type": "component",
-        "id": "pricingHeader",
+        "type": "link",
+        "id": "loginLink",
+        "href": "/subscribe/login",
         "required": true,
-        "description": "Page header with title and subtitle"
+        "description": "Link to login page for existing customers"
       },
       {
-        "type": "component",
-        "id": "pricingTiers",
+        "type": "link",
+        "id": "signupLink",
+        "href": "/subscribe/signup",
         "required": true,
-        "description": "Grid of pricing tier cards (Free, Pro, Enterprise)"
-      },
-      {
-        "type": "component",
-        "id": "featureComparison",
-        "required": false,
-        "description": "Feature comparison table across tiers"
-      },
-      {
-        "type": "button",
-        "id": "ctaButtons",
-        "action": "handleSelectPlan",
-        "required": true,
-        "description": "CTA buttons for each pricing tier"
-      },
-      {
-        "type": "component",
-        "id": "faqSection",
-        "required": false,
-        "description": "Frequently asked questions about pricing"
+        "description": "Link to signup page for new customers"
       }
     ],
     "required_functionality": [
       {
         "name": "fetchPlans",
-        "description": "Fetch available plans from API",
+        "description": "Fetch available plans from API to display pricing",
         "api_endpoint": "/api/plans/public",
         "method": "GET",
-        "required": true
-      },
-      {
-        "name": "handleSelectPlan",
-        "description": "Navigate to checkout for selected plan",
         "required": true
       }
     ],
     "styling_guidelines": [
-      "Highlight recommended/popular plan",
-      "Clear price display with billing cycle",
-      "Feature lists with checkmarks",
-      "Responsive grid layout",
-      "Trust indicators (money-back guarantee, etc.)"
+      "Complete design freedom - create any pricing layout",
+      "Must fetch and display plans from /api/plans/public",
+      "Include login/signup links somewhere on the page",
+      "Responsive design for mobile and desktop",
+      "Focus on converting visitors to customers"
     ]
   },
   "about-page": {
     "name": "About Page",
-    "description": "Company/product information and story page",
+    "description": "About page for your SaaS - complete design freedom to tell your story",
     "layout_type": "public_layout",
     "content_area": "about_content",
+    "design_freedom": true,
     "required_elements": [
       {
-        "type": "component",
-        "id": "heroSection",
+        "type": "link",
+        "id": "loginLink",
+        "href": "/subscribe/login",
         "required": true,
-        "description": "Hero section with company mission"
+        "description": "Link to login page for existing customers"
       },
       {
-        "type": "component",
-        "id": "storySection",
+        "type": "link",
+        "id": "signupLink",
+        "href": "/subscribe/signup",
         "required": true,
-        "description": "Company or product story"
-      },
-      {
-        "type": "component",
-        "id": "valuesSection",
-        "required": false,
-        "description": "Core values or principles"
-      },
-      {
-        "type": "component",
-        "id": "teamSection",
-        "required": false,
-        "description": "Team members grid (optional)"
-      },
-      {
-        "type": "component",
-        "id": "ctaSection",
-        "required": true,
-        "description": "Call to action to get started"
+        "description": "Link to signup page for new customers"
       }
     ],
     "required_functionality": [],
     "styling_guidelines": [
-      "Professional and trustworthy design",
-      "Good use of whitespace",
-      "Engaging storytelling layout",
-      "Responsive images",
-      "Clear hierarchy"
+      "Complete design freedom - create any about page layout",
+      "Tell your company/product story your way",
+      "Include login/signup links somewhere on the page",
+      "Responsive design for mobile and desktop",
+      "Focus on building trust and connection"
     ]
   },
   "contact-page": {
     "name": "Contact Page",
-    "description": "Contact form and company contact information",
+    "description": "Contact page with flexible styling - must include working contact form",
     "layout_type": "public_layout",
     "content_area": "contact_content",
+    "flexible_styling": true,
     "required_elements": [
       {
-        "type": "component",
-        "id": "contactHeader",
-        "required": true,
-        "description": "Page header with title"
-      },
-      {
         "type": "form",
-        "id": "contactForm",
         "action": "handleSubmit",
         "required": true,
-        "description": "Contact form"
+        "description": "Contact form - any styling, must submit to API"
       },
       {
         "type": "input",
-        "id": "name",
         "name": "name",
         "input_type": "text",
         "required": true,
@@ -1095,111 +977,89 @@
       },
       {
         "type": "input",
-        "id": "email",
         "name": "email",
         "input_type": "email",
         "required": true,
         "description": "Email input field"
       },
       {
-        "type": "input",
-        "id": "subject",
-        "name": "subject",
-        "input_type": "text",
-        "required": false,
-        "description": "Subject input field"
-      },
-      {
         "type": "textarea",
-        "id": "message",
         "name": "message",
         "required": true,
         "description": "Message textarea"
       },
       {
         "type": "button",
-        "id": "submitButton",
         "button_type": "submit",
         "required": true,
         "description": "Submit button"
       },
       {
-        "type": "component",
-        "id": "contactInfo",
-        "required": false,
-        "description": "Company contact information"
+        "type": "link",
+        "href": "/subscribe/login",
+        "required": true,
+        "description": "Link to login page"
+      },
+      {
+        "type": "link",
+        "href": "/subscribe/signup",
+        "required": true,
+        "description": "Link to signup page"
       }
     ],
     "required_functionality": [
       {
         "name": "handleSubmit",
-        "description": "Submit contact form",
+        "description": "Submit contact form to API",
         "api_endpoint": "/api/contact",
         "method": "POST",
         "required_fields": ["name", "email", "message"],
-        "success_message": "Thank you for your message!"
+        "required": true
       }
     ],
     "styling_guidelines": [
-      "Clean form layout",
-      "Clear validation states",
-      "Loading state for submission",
-      "Success/error feedback",
-      "Responsive design"
+      "Flexible styling - design the page layout however you want",
+      "Must include working contact form with name, email, message fields",
+      "Form must POST to /api/contact",
+      "Include login/signup links somewhere",
+      "Responsive design for mobile and desktop"
     ]
   },
   "blog-homepage": {
     "name": "Blog Homepage",
-    "description": "Blog listing page with posts grid",
+    "description": "Blog page for your SaaS - complete design freedom with posts from API",
     "layout_type": "public_layout",
     "content_area": "blog_content",
+    "design_freedom": true,
     "required_elements": [
       {
-        "type": "component",
-        "id": "blogHeader",
+        "type": "link",
+        "href": "/subscribe/login",
         "required": true,
-        "description": "Blog header with title"
+        "description": "Link to login page"
       },
       {
-        "type": "component",
-        "id": "featuredPost",
-        "required": false,
-        "description": "Featured/latest post highlight"
-      },
-      {
-        "type": "component",
-        "id": "postGrid",
+        "type": "link",
+        "href": "/subscribe/signup",
         "required": true,
-        "description": "Grid of blog post cards"
-      },
-      {
-        "type": "component",
-        "id": "categories",
-        "required": false,
-        "description": "Category filter/navigation"
-      },
-      {
-        "type": "component",
-        "id": "pagination",
-        "required": false,
-        "description": "Pagination for posts"
+        "description": "Link to signup page"
       }
     ],
     "required_functionality": [
       {
         "name": "fetchPosts",
-        "description": "Fetch blog posts from API",
+        "description": "Fetch blog posts from API to display",
         "api_endpoint": "/api/public/blog",
         "method": "GET",
         "required": true
       }
     ],
     "styling_guidelines": [
-      "Card-based post layout",
-      "Featured image support",
-      "Category tags",
-      "Read time indicators",
-      "Responsive grid"
+      "Complete design freedom - create any blog layout",
+      "Must fetch and display posts from /api/public/blog",
+      "Include login/signup links somewhere on the page",
+      "Responsive design for mobile and desktop",
+      "Display posts in any creative way you want"
     ]
   }
 }

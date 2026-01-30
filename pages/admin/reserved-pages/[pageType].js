@@ -575,25 +575,97 @@ export default function ReservedPageCustomizer() {
         )}
 
         {/* Required Elements Info */}
-        {rules && (
-          <div className="bg-emerald-900/20 border border-emerald-600/30 rounded-xl p-4 mb-6">
-            <h3 className="text-emerald-300 font-medium mb-2">Required Elements (Automatically Maintained)</h3>
-            <div className="flex flex-wrap gap-2">
-              {rules.required_elements.map((element, index) => (
-                <span 
-                  key={index}
-                  className="bg-emerald-800/30 text-emerald-200 text-xs px-2 py-1 rounded border border-emerald-600/30"
-                  title={element.description}
-                >
-                  {element.type}: {element.id || element.name}
-                </span>
-              ))}
+        {rules && (() => {
+          const DESIGN_FREEDOM_PAGES = ['landing-page', 'pricing-page', 'about-page', 'blog-homepage'];
+          const FLEXIBLE_STYLING_PAGES = ['customer-login', 'customer-signup', 'password-reset', 'contact-page'];
+
+          const isDesignFreedom = DESIGN_FREEDOM_PAGES.includes(pageType);
+          const isFlexibleStyling = FLEXIBLE_STYLING_PAGES.includes(pageType);
+
+          // Get theme colors based on flexibility level
+          const themeClasses = isDesignFreedom
+            ? { bg: 'bg-blue-900/20 border-blue-600/30', title: 'text-blue-300', badge: 'bg-blue-800/30 text-blue-200 border-blue-600/30', text: 'text-blue-200/70' }
+            : isFlexibleStyling
+            ? { bg: 'bg-purple-900/20 border-purple-600/30', title: 'text-purple-300', badge: 'bg-purple-800/30 text-purple-200 border-purple-600/30', text: 'text-purple-200/70' }
+            : { bg: 'bg-emerald-900/20 border-emerald-600/30', title: 'text-emerald-300', badge: 'bg-emerald-800/30 text-emerald-200 border-emerald-600/30', text: 'text-emerald-200/70' };
+
+          return (
+            <div className={`rounded-xl p-4 mb-6 border ${themeClasses.bg}`}>
+              <h3 className={`font-medium mb-2 ${themeClasses.title}`}>
+                {isDesignFreedom
+                  ? 'Design Freedom - Complete Creative Control'
+                  : isFlexibleStyling
+                  ? 'Flexible Styling - Any Design, Working Forms'
+                  : 'Required Elements (Automatically Maintained)'}
+              </h3>
+
+              {isDesignFreedom ? (
+                <div>
+                  <p className={`text-sm mb-3 ${themeClasses.text}`}>
+                    Complete creative freedom. Design any layout, style, and structure. Only requirements:
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    <span className={`text-xs px-2 py-1 rounded border ${themeClasses.badge}`}>
+                      link: /subscribe/login
+                    </span>
+                    <span className={`text-xs px-2 py-1 rounded border ${themeClasses.badge}`}>
+                      link: /subscribe/signup
+                    </span>
+                    {rules.required_functionality?.length > 0 && (
+                      <span className={`text-xs px-2 py-1 rounded border ${themeClasses.badge}`}>
+                        API: {rules.required_functionality[0].api_endpoint}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              ) : isFlexibleStyling ? (
+                <div>
+                  <p className={`text-sm mb-3 ${themeClasses.text}`}>
+                    Design any visual style. These form elements must work:
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {rules.required_elements
+                      .filter(el => el.type === 'input' || el.type === 'textarea')
+                      .map((element, index) => (
+                        <span
+                          key={index}
+                          className={`text-xs px-2 py-1 rounded border ${themeClasses.badge}`}
+                          title={element.description}
+                        >
+                          {element.name}: {element.input_type || 'text'}
+                        </span>
+                      ))}
+                    {rules.required_functionality?.filter(f => f.api_endpoint).map((func, index) => (
+                      <span
+                        key={`api-${index}`}
+                        className={`text-xs px-2 py-1 rounded border ${themeClasses.badge}`}
+                      >
+                        API: {func.api_endpoint}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <div className="flex flex-wrap gap-2">
+                    {rules.required_elements.map((element, index) => (
+                      <span
+                        key={index}
+                        className={`text-xs px-2 py-1 rounded border ${themeClasses.badge}`}
+                        title={element.description}
+                      >
+                        {element.type}: {element.id || element.name}
+                      </span>
+                    ))}
+                  </div>
+                  <p className={`text-xs mt-2 ${themeClasses.text}`}>
+                    All required functionality will be preserved. Focus on styling and user experience.
+                  </p>
+                </>
+              )}
             </div>
-            <p className="text-emerald-200/70 text-xs mt-2">
-              All required functionality will be preserved. Focus on styling and user experience.
-            </p>
-          </div>
-        )}
+          );
+        })()}
 
         {/* AI Builder Interface */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-[calc(100vh-400px)]">
