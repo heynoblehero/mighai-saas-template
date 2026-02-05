@@ -158,8 +158,7 @@ async function sendOTP(userId, actionType, actionData = null) {
   const requirementMap = {
     'login': settings.require_on_login,
     'database_change': settings.require_on_database_changes,
-    'page_change': settings.require_on_page_changes,
-    'route_change': settings.require_on_route_changes
+    'page_change': settings.require_on_page_changes
   };
 
   if (!requirementMap[actionType]) {

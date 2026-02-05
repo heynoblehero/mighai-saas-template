@@ -367,7 +367,7 @@ const EnhancedOnboarding = ({ onComplete, onDismiss }) => {
             <ul className="text-yellow-800 text-sm space-y-1">
               <li>• How to design and build a complete SaaS database</li>
               <li>• Creating beautiful, responsive pages with our visual editor</li>
-              <li>• Building custom API endpoints and backend logic</li>
+              <li>• Deploying your own backend app (Python, Node.js, Go, etc.)</li>
               <li>• Setting up authentication and user management</li>
               <li>• Implementing subscription payments with Lemon Squeezy</li>
               <li>• Deploying and monitoring your live SaaS product</li>

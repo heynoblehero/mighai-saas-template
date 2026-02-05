@@ -10,8 +10,7 @@ export default function SecuritySettings() {
     telegram_bot_token_configured: false,
     require_on_login: true,
     require_on_database_changes: true,
-    require_on_page_changes: true,
-    require_on_route_changes: true
+    require_on_page_changes: true
   });
 
   const [loading, setLoading] = useState(true);
@@ -456,18 +455,6 @@ export default function SecuritySettings() {
                 </div>
               </label>
 
-              <label className="flex items-center space-x-3 p-3 bg-slate-700/50 rounded-lg">
-                <input
-                  type="checkbox"
-                  checked={settings.require_on_route_changes}
-                  onChange={(e) => handleChange('require_on_route_changes', e.target.checked)}
-                  className="w-4 h-4 text-emerald-600 bg-slate-700 border-slate-600 rounded"
-                />
-                <div>
-                  <div className="text-slate-200 font-medium">Route Changes</div>
-                  <div className="text-slate-400 text-sm">Require verification when creating or modifying custom routes</div>
-                </div>
-              </label>
             </div>
           </div>
         )}

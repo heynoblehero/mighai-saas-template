@@ -26,15 +26,19 @@ RUN npm run build
 # Stage 3: Production image - ONLY runtime files, NO source code
 FROM node:20-slim AS runner
 
-# Install runtime dependencies
-RUN apt-get update && apt-get install -y \
-    sqlite3 \
-    wget \
+# Install runtime dependencies including BYOB support
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    git wget curl sqlite3 procps sudo \
+    python3 python3-pip python3-venv python3-dev \
+    build-essential gcc g++ make \
     && rm -rf /var/lib/apt/lists/*
 
 # Create non-root user
 RUN groupadd -g 1001 nodejs && \
     useradd -r -u 1001 -g nodejs nextjs
+
+# Grant nextjs user sudo access for package installation (BYOB feature)
+RUN echo "nextjs ALL=(root) NOPASSWD: /usr/bin/apt-get, /usr/bin/pip3, /usr/bin/pip" > /etc/sudoers.d/nextjs
 
 WORKDIR /app
 
@@ -61,10 +65,10 @@ COPY --from=builder --chown=nextjs:nodejs /app/custom-routes ./custom-routes
 COPY --from=builder --chown=nextjs:nodejs /app/scripts ./scripts
 
 # Create necessary directories
-RUN mkdir -p data uploads logs && \
+RUN mkdir -p data uploads logs user-backend && \
     touch site_builder.db && \
     chown -R nextjs:nodejs /app && \
-    chmod -R 755 data uploads logs
+    chmod -R 755 data uploads logs user-backend
 
 # Rebuild native modules for production
 RUN npm rebuild better-sqlite3

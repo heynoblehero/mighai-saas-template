@@ -95,6 +95,26 @@ export default function ReviewCompleteStep() {
       ),
       completed: wizardState?.pages_generated,
       details: wizardState?.generated_pages ? `${Object.keys(wizardState.generated_pages).length} pages generated` : 'Not generated'
+    },
+    {
+      title: 'Backend',
+      icon: (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+        </svg>
+      ),
+      completed: true,
+      details: 'Shell access available'
+    },
+    {
+      title: 'Custom Frontend',
+      icon: (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+        </svg>
+      ),
+      completed: true,
+      details: 'Ready to deploy'
     }
   ];
 
@@ -103,8 +123,9 @@ export default function ReviewCompleteStep() {
     { name: 'Edit Landing Page', href: '/admin/reserved-pages', icon: '📄' },
     { name: 'Manage Subscribers', href: '/admin/subscribers', icon: '👥' },
     { name: 'View Analytics', href: '/admin/analytics', icon: '📊' },
-    { name: 'Add Blog Posts', href: '/admin/blog', icon: '✏️' },
-    { name: 'Configure Email', href: '/admin/email', icon: '📧' }
+    { name: 'Shell Access', href: '/admin/backend/app', icon: '💻' },
+    { name: 'Upload Frontend', href: '/admin/frontend', icon: '📦' },
+    { name: 'API Documentation', href: '/admin/api-docs', icon: '📘' }
   ];
 
   return (
@@ -119,7 +140,7 @@ export default function ReviewCompleteStep() {
       </div>
 
       {/* Summary grid */}
-      <div className="grid grid-cols-2 gap-3 mb-8">
+      <div className="grid grid-cols-3 gap-3 mb-8">
         {sections.map((section, index) => (
           <div
             key={index}
@@ -178,7 +199,7 @@ export default function ReviewCompleteStep() {
       {/* Quick links */}
       <div className="mb-8">
         <h3 className="text-sm font-medium text-slate-300 mb-3">Quick Links</h3>
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-3 gap-2">
           {quickLinks.map((link, index) => (
             <a
               key={index}

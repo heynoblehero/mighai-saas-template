@@ -9,7 +9,26 @@ import {
   generateStyleSection,
   MINIMAL_SYSTEM_PROMPT
 } from '../../../lib/ai-prompt-utils.js';
+import { generateThemePromptSection } from '../../../utils/theme-context-builder.js';
+import db from '../../../lib/database.js';
 import crypto from 'crypto';
+
+/**
+ * Load site settings (colors, fonts) from database
+ */
+async function getSiteSettings() {
+  try {
+    const settings = await db.get(`
+      SELECT primary_color, secondary_color, font_family
+      FROM support_chat_settings
+      LIMIT 1
+    `);
+    return settings || {};
+  } catch (error) {
+    console.log('Could not load site settings, using defaults');
+    return {};
+  }
+}
 
 const SETTINGS_FILE = path.join(process.cwd(), 'data', 'ai-settings.json');
 const RULES_FILE = path.join(process.cwd(), 'data', 'reserved-page-rules.json');
@@ -112,13 +131,17 @@ const FLEXIBLE_STYLING_PAGES = ['customer-login', 'customer-signup', 'password-r
 /**
  * Generate system prompt for reserved pages
  * Handles different flexibility levels based on page type
+ * Now includes mandatory theme context for consistency
  */
-function generateSystemPrompt(pageType, rules, aiContext) {
+function generateSystemPrompt(pageType, rules, aiContext, siteSettings = {}) {
   const pageRules = rules[pageType];
   if (!pageRules) return MINIMAL_SYSTEM_PROMPT;
 
   const routes = aiContext.routes || {};
   const apis = aiContext.api_endpoints || {};
+
+  // Get the theme prompt section for consistent styling
+  const themeSection = generateThemePromptSection(siteSettings);
 
   // Full design freedom pages - only require login/signup links
   if (DESIGN_FREEDOM_PAGES.includes(pageType)) {
@@ -132,14 +155,14 @@ function generateSystemPrompt(pageType, rules, aiContext) {
 
     return `You are an expert web developer creating a ${pageRules.name} for a SaaS product.
 
-## COMPLETE DESIGN FREEDOM
-You have COMPLETE creative freedom to design any ${pageRules.name.toLowerCase()} layout. Create whatever design best fits the user's description:
-- Any layout structure, sections, and components
-- Any animations, colors, and styling
-- Custom sections based on the user's vision
+${themeSection}
+
+## LAYOUT FREEDOM
+You have creative freedom for the LAYOUT and STRUCTURE. Create any sections, animations, and arrangements.
+However, you MUST use the colors and fonts defined in the REQUIRED DESIGN SYSTEM above.
 ${apiNote}
 
-## ONLY REQUIREMENTS (must include somewhere on the page):
+## REQUIRED LINKS (must include somewhere on the page):
 1. A link to the login page: href="/subscribe/login" (for existing customers)
 2. A link to the signup page: href="/subscribe/signup" (for new customers)
 
@@ -152,16 +175,18 @@ ${routes.route_mappings ? Object.entries(routes.route_mappings).map(([key, route
 Generate a complete HTML document with:
 - <!DOCTYPE html>
 - Tailwind CSS CDN
+- Required font import from design system
+- CSS variables from design system
 - The two required links (login and signup)
 - Responsive design
-- Any creative layout the user requests
+- Creative layout using ONLY the theme colors
 
 ## DO NOT INCLUDE (already handled globally):
 - Analytics tracking
 - Heatmap tracking
 - Support chat widget
 
-Follow the user's creative direction completely. No markdown code blocks - just HTML.`;
+Follow the user's creative direction for LAYOUT while using the REQUIRED theme colors/fonts. No markdown code blocks - just HTML.`;
   }
 
   // Flexible styling pages - keep forms/APIs but allow creative design
@@ -184,8 +209,11 @@ Follow the user's creative direction completely. No markdown code blocks - just 
 
     return `You are an expert web developer creating a ${pageRules.name} for a SaaS product.
 
-## FLEXIBLE STYLING
-You have COMPLETE FREEDOM for the visual design and layout. Style this page however you want - dark theme, light theme, gradients, animations, any layout structure.
+${themeSection}
+
+## LAYOUT FREEDOM
+You have COMPLETE FREEDOM for the layout structure, animations, and arrangement.
+However, you MUST use the colors and fonts defined in the REQUIRED DESIGN SYSTEM above.
 
 ## FUNCTIONAL REQUIREMENTS (must work correctly):
 The page must include a working form with these fields:${formFields}
@@ -202,21 +230,25 @@ ${routes.route_mappings ? Object.entries(routes.route_mappings).map(([key, route
 Generate a complete HTML document with:
 - <!DOCTYPE html>
 - Tailwind CSS CDN
+- Required font import from design system
+- CSS variables from design system
 - Working form with proper API integration
 - Loading states and error handling
 - Responsive design
-- Any creative styling you want
+- Creative layout using ONLY the theme colors
 
 ## DO NOT INCLUDE (already handled globally):
 - Analytics tracking
 - Heatmap tracking
 - Support chat widget
 
-Style the page creatively while ensuring the form functionality works. No markdown code blocks - just HTML.`;
+Creative layout freedom, but use the REQUIRED theme colors/fonts. No markdown code blocks - just HTML.`;
   }
 
   // Standard handling for other page types (dashboard pages, etc.)
   let systemPrompt = `You are an expert web developer creating a ${pageRules.name}.
+
+${themeSection}
 
 ## Page Description:
 ${pageRules.description}
@@ -255,15 +287,18 @@ ${pageRules.description}
 Generate a complete HTML document with:
 - <!DOCTYPE html>
 - Tailwind CSS CDN
+- Required font import from design system
+- CSS variables from design system
 - All required elements and functions
 - Responsive design
+- Use ONLY the theme colors defined above
 
 ## DO NOT INCLUDE (already global):
 - Analytics tracking
 - Heatmap tracking
 - Support chat widget
 
-Follow the user's creative direction for styling. No markdown code blocks - just HTML.`;
+Use the REQUIRED theme colors/fonts from the design system. No markdown code blocks - just HTML.`;
 
   return systemPrompt;
 }
@@ -338,8 +373,12 @@ async function handler(req, res) {
     }
 
     // ============ BUILD PROMPTS ============
-    // System prompt with page requirements (simplified)
-    const systemPrompt = generateSystemPrompt(pageType, rules, aiContext);
+    // Load site settings for consistent theming
+    const siteSettings = await getSiteSettings();
+    console.log('🎨 Site settings loaded:', siteSettings.primary_color || 'default', siteSettings.font_family || 'default');
+
+    // System prompt with page requirements and theme context
+    const systemPrompt = generateSystemPrompt(pageType, rules, aiContext, siteSettings);
 
     // Style hint (suggestion only)
     const styleDetection = detectDesignStyle(prompt, {

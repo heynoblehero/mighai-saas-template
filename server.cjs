@@ -16,6 +16,9 @@ const { v4: uuidv4 } = require('uuid');
 const jwt = require('jsonwebtoken');
 const multer = require('multer');
 const fs = require('fs');
+const http = require('http');
+const WebSocket = require('ws');
+const pty = require('node-pty');
 
 // Lemon Squeezy initialization
 const { lemonSqueezySetup, createCheckout, getProduct, getVariant, listProducts, listVariants } = require('@lemonsqueezy/lemonsqueezy.js');
@@ -167,43 +170,6 @@ db.serialize(() => {
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES users (id)
   )`);
-
-  // Storage buckets table
-  db.run(`CREATE TABLE IF NOT EXISTS storage_buckets (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL UNIQUE,
-    slug TEXT NOT NULL UNIQUE,
-    description TEXT,
-    allowed_file_types TEXT,
-    max_file_size INTEGER DEFAULT 10485760,
-    access_level TEXT DEFAULT 'private',
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-  )`);
-
-  // Storage files table
-  db.run(`CREATE TABLE IF NOT EXISTS storage_files (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    bucket_id INTEGER NOT NULL,
-    original_name TEXT NOT NULL,
-    stored_name TEXT NOT NULL UNIQUE,
-    file_path TEXT NOT NULL,
-    mime_type TEXT NOT NULL,
-    file_size INTEGER NOT NULL,
-    uploaded_by TEXT,
-    access_level TEXT DEFAULT 'private',
-    metadata TEXT,
-    virus_scanned BOOLEAN DEFAULT 0,
-    scan_status TEXT DEFAULT 'pending',
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (bucket_id) REFERENCES storage_buckets(id) ON DELETE CASCADE
-  )`);
-
-  // Create indexes for storage tables
-  db.run(`CREATE INDEX IF NOT EXISTS idx_files_bucket ON storage_files(bucket_id)`);
-  db.run(`CREATE INDEX IF NOT EXISTS idx_files_uploaded_by ON storage_files(uploaded_by)`);
-  db.run(`CREATE INDEX IF NOT EXISTS idx_buckets_slug ON storage_buckets(slug)`);
 
   // Create default admin user if not exists
   const defaultPassword = bcrypt.hashSync('admin123', 10);
@@ -774,7 +740,6 @@ db.serialize(() => {
     require_on_login BOOLEAN DEFAULT true,
     require_on_database_changes BOOLEAN DEFAULT true,
     require_on_page_changes BOOLEAN DEFAULT true,
-    require_on_route_changes BOOLEAN DEFAULT true,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES users (id)
@@ -792,59 +757,6 @@ db.serialize(() => {
     used BOOLEAN DEFAULT false,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES users (id)
-  )`);
-
-  // Custom API Routes System - Backend Routes Creator
-  db.run(`CREATE TABLE IF NOT EXISTS custom_api_routes (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL,
-    slug TEXT NOT NULL UNIQUE,
-    method TEXT NOT NULL CHECK (method IN ('GET', 'POST', 'PUT', 'DELETE', 'PATCH')),
-    description TEXT,
-    code TEXT NOT NULL,
-    packages TEXT DEFAULT '[]',
-    installed_packages TEXT DEFAULT '[]',
-    status TEXT DEFAULT 'draft' CHECK (status IN ('draft', 'active', 'inactive')),
-    auth_required BOOLEAN DEFAULT 0,
-    rate_limit_per_day INTEGER,
-    plan_access TEXT DEFAULT 'public',
-    created_by INTEGER NOT NULL,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    last_executed_at DATETIME,
-    execution_count INTEGER DEFAULT 0,
-    FOREIGN KEY (created_by) REFERENCES users (id)
-  )`);
-
-  // API Route Execution Logs
-  db.run(`CREATE TABLE IF NOT EXISTS api_route_logs (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    route_id INTEGER NOT NULL,
-    request_method TEXT NOT NULL,
-    request_headers TEXT,
-    request_body TEXT,
-    request_query TEXT,
-    request_params TEXT,
-    response_status INTEGER,
-    response_data TEXT,
-    execution_time_ms INTEGER,
-    console_logs TEXT DEFAULT '[]',
-    error_message TEXT,
-    error_stack TEXT,
-    ip_address TEXT,
-    user_agent TEXT,
-    executed_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (route_id) REFERENCES custom_api_routes (id) ON DELETE CASCADE
-  )`);
-
-  // Server Logs
-  db.run(`CREATE TABLE IF NOT EXISTS server_logs (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    log_type TEXT NOT NULL CHECK (log_type IN ('info', 'error', 'warning', 'debug')),
-    message TEXT NOT NULL,
-    context TEXT,
-    source TEXT,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   )`);
 
   // Login Attempts Tracking Table - For Brute Force Protection
@@ -932,13 +844,6 @@ db.serialize(() => {
   db.run(`CREATE INDEX IF NOT EXISTS idx_api_keys_hash ON subscriber_api_keys(key_hash)`);
   db.run(`CREATE INDEX IF NOT EXISTS idx_api_keys_user ON subscriber_api_keys(user_id)`);
 
-  // Add allow_api_key_access column to custom_api_routes
-  db.run(`ALTER TABLE custom_api_routes ADD COLUMN allow_api_key_access BOOLEAN DEFAULT 0`, (err) => {
-    if (err && !err.message.includes('duplicate column name')) {
-      console.error('Error adding allow_api_key_access column:', err);
-    }
-  });
-
   // Email Settings Table
   db.run(`CREATE TABLE IF NOT EXISTS email_settings (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -1021,6 +926,31 @@ db.serialize(() => {
   // Insert default email settings if not exists
   db.run(`INSERT OR IGNORE INTO email_settings (id, admin_email, from_email, from_name)
     VALUES (1, 'admin@mighai.com', 'noreply@mighai.com', 'Mighai')`);
+
+  // =====================================================
+  // BYOB (Bring Your Own Backend) Tables
+  // =====================================================
+
+  // Backend Config - simplified configuration for shell-based backend
+  db.run(`CREATE TABLE IF NOT EXISTS backend_config (
+    id INTEGER PRIMARY KEY,
+    gateway_path TEXT DEFAULT '/api/v1',
+    gateway_port INTEGER DEFAULT 5000,
+    gateway_access TEXT DEFAULT 'public',
+    internal_api_token TEXT,
+    env_vars TEXT DEFAULT '{}',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  )`);
+
+  // Frontend Config - custom frontend hosting configuration
+  db.run(`CREATE TABLE IF NOT EXISTS frontend_config (
+    id INTEGER PRIMARY KEY,
+    is_enabled BOOLEAN DEFAULT 1,
+    uploaded_at DATETIME,
+    total_size INTEGER DEFAULT 0,
+    file_count INTEGER DEFAULT 0
+  )`);
 });
 
 // Helper to get LemonSqueezy credentials (from env or DB)
@@ -1168,7 +1098,7 @@ nextApp.prepare()
     limit: '50mb',
     parameterLimit: 100000
   }));
-  server.use(session({
+  const sessionMiddleware = session({
     store: new FileStore({
       path: path.join(__dirname, 'data', '.sessions'),
       ttl: 86400, // 24 hours in seconds
@@ -1182,9 +1112,13 @@ nextApp.prepare()
       secure: false, // Set to true in production with HTTPS
       maxAge: 86400000 // 24 hours in milliseconds
     }
-  }));
+  });
+  server.use(sessionMiddleware);
   server.use(passport.initialize());
   server.use(passport.session());
+
+  // Store session middleware globally for WebSocket auth
+  global.__sessionMiddleware = sessionMiddleware;
 
   // Authentication middleware - for admin only
   const requireAuth = (req, res, next) => {
@@ -1209,6 +1143,84 @@ nextApp.prepare()
     }
     res.status(401).json({ error: 'Authentication required' });
   };
+
+  // =====================================================
+  // BYOB (Bring Your Own Backend) Initialization
+  // =====================================================
+
+  // Initialize Gateway Middleware (must be before other routes)
+  const gateway = require('./services/gateway');
+  server.use(gateway.middleware(db));
+  console.log('[BYOB] Gateway middleware registered');
+
+  // Expose gateway reload function globally
+  global.__gatewayReload = gateway.reloadConfig;
+
+  // =====================================================
+  // Custom Frontend Middleware
+  // Serves custom frontend files for customer-facing routes
+  // =====================================================
+  const customFrontendDir = path.join(__dirname, 'custom-frontend');
+
+  const hasCustomFrontend = () => {
+    return fs.existsSync(path.join(customFrontendDir, 'index.html'));
+  };
+
+  const isCustomFrontendEnabled = (callback) => {
+    db.get('SELECT is_enabled FROM frontend_config WHERE id = 1', (err, row) => {
+      callback(!err && row && row.is_enabled === 1);
+    });
+  };
+
+  // Custom frontend middleware
+  server.use((req, res, next) => {
+    // Skip API routes, admin routes, and Next.js internals
+    if (req.path.startsWith('/api/') ||
+        req.path.startsWith('/admin') ||
+        req.path.startsWith('/_next') ||
+        req.path.startsWith('/subscribe') ||
+        req.path.startsWith('/dashboard') ||
+        req.path.startsWith('/blog')) {
+      return next();
+    }
+
+    // Check if custom frontend exists and is enabled
+    if (!hasCustomFrontend()) {
+      return next();
+    }
+
+    isCustomFrontendEnabled((enabled) => {
+      if (!enabled) {
+        return next();
+      }
+
+      // Try to serve the exact file first
+      const requestedPath = req.path === '/' ? '/index.html' : req.path;
+      const filePath = path.join(customFrontendDir, requestedPath);
+
+      // Security: ensure the resolved path is within customFrontendDir
+      const resolvedPath = path.resolve(filePath);
+      if (!resolvedPath.startsWith(path.resolve(customFrontendDir))) {
+        return next();
+      }
+
+      // Check if file exists
+      if (fs.existsSync(resolvedPath) && fs.statSync(resolvedPath).isFile()) {
+        return res.sendFile(resolvedPath);
+      }
+
+      // SPA fallback - serve index.html for non-file routes
+      // (routes without extensions that don't match a file)
+      if (!path.extname(req.path)) {
+        return res.sendFile(path.join(customFrontendDir, 'index.html'));
+      }
+
+      // File with extension not found, let Next.js handle 404
+      next();
+    });
+  });
+
+  console.log('[Custom Frontend] Middleware registered');
 
   // Handle root path FIRST - before any other routes
   server.get('/', (req, res) => {
@@ -5553,11 +5565,145 @@ server.${httpMethod.toLowerCase()}('${routePath}', requireSubscriberAuth, async 
   });
 
   const PORT = process.env.PORT || 5000;
-  server.listen(PORT, (err) => {
+
+  // Create HTTP server for WebSocket support
+  const httpServer = http.createServer(server);
+
+  // Initialize Terminal Manager
+  const TerminalManager = require('./services/terminal-manager');
+  const terminalManager = new TerminalManager({
+    userHomeDir: path.join(process.cwd(), 'user-home')
+  });
+  global.__terminalManager = terminalManager;
+
+  // Initialize backend config with token if not exists
+  db.get('SELECT * FROM backend_config WHERE id = 1', (err, row) => {
+    if (!row) {
+      const token = terminalManager.getInternalApiToken();
+      db.run(
+        `INSERT INTO backend_config (id, internal_api_token) VALUES (1, ?)`,
+        [token]
+      );
+    } else if (row.internal_api_token) {
+      // Update terminal manager with existing token
+      terminalManager.setInternalApiToken(row.internal_api_token);
+    }
+  });
+
+  // Create WebSocket server for terminal
+  const wss = new WebSocket.Server({ noServer: true });
+
+  // WebSocket upgrade handler
+  httpServer.on('upgrade', (request, socket, head) => {
+    // Handle terminal WebSocket requests - support session IDs in URL
+    const url = new URL(request.url, `http://${request.headers.host}`);
+    if (url.pathname === '/api/admin/terminal/ws') {
+      // Authenticate using session
+      const sessionMiddleware = global.__sessionMiddleware;
+      if (!sessionMiddleware) {
+        socket.destroy();
+        return;
+      }
+
+      sessionMiddleware(request, {}, () => {
+        // Check if user is authenticated admin
+        if (request.session?.passport?.user) {
+          // Get user from database
+          db.get('SELECT * FROM users WHERE id = ?', [request.session.passport.user], (err, user) => {
+            if (err || !user || user.role !== 'admin') {
+              socket.destroy();
+              return;
+            }
+            // Get session ID from query params (default to 'default')
+            const sessionId = url.searchParams.get('session') || 'default';
+            // User is authenticated admin, upgrade connection
+            wss.handleUpgrade(request, socket, head, (ws) => {
+              wss.emit('connection', ws, request, user, sessionId);
+            });
+          });
+        } else {
+          socket.destroy();
+        }
+      });
+    } else {
+      socket.destroy();
+    }
+  });
+
+  // WebSocket connection handler for terminal
+  wss.on('connection', (ws, request, user, sessionId) => {
+    console.log(`[Terminal] Admin ${user.email} connected to session: ${sessionId}`);
+
+    // Get or create terminal session
+    const url = new URL(request.url, `http://${request.headers.host}`);
+    const cols = parseInt(url.searchParams.get('cols')) || 80;
+    const rows = parseInt(url.searchParams.get('rows')) || 24;
+
+    const session = terminalManager.getOrCreateSession(sessionId, { cols, rows });
+    terminalManager.attachWebSocket(sessionId, ws);
+
+    // PTY -> WebSocket
+    const dataHandler = (data) => {
+      try {
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: 'output', data }));
+        }
+      } catch (e) {
+        console.error('[Terminal] Error sending data:', e);
+      }
+    };
+    session.pty.onData(dataHandler);
+
+    // WebSocket -> PTY
+    ws.on('message', (msg) => {
+      try {
+        const message = JSON.parse(msg.toString());
+        if (message.type === 'input') {
+          terminalManager.writeToSession(sessionId, message.data);
+        } else if (message.type === 'resize') {
+          terminalManager.resizeSession(sessionId, message.data.cols, message.data.rows);
+        }
+      } catch (e) {
+        console.error('[Terminal] Error processing message:', e);
+      }
+    });
+
+    // Cleanup on close
+    ws.on('close', () => {
+      console.log(`[Terminal] Admin ${user.email} disconnected from session: ${sessionId}`);
+      terminalManager.detachWebSocket(sessionId, ws);
+      // Don't kill session on disconnect - keep it persistent
+    });
+
+    ws.on('error', (error) => {
+      console.error('[Terminal] WebSocket error:', error);
+      terminalManager.detachWebSocket(sessionId, ws);
+    });
+  });
+
+  // Graceful shutdown handler
+  const gracefulShutdown = () => {
+    console.log('\n[Server] Shutting down gracefully...');
+    terminalManager.cleanup();
+    httpServer.close(() => {
+      console.log('[Server] HTTP server closed');
+      db.close((err) => {
+        if (err) console.error('[Server] Error closing database:', err);
+        else console.log('[Server] Database connection closed');
+        process.exit(0);
+      });
+    });
+  };
+
+  process.on('SIGTERM', gracefulShutdown);
+  process.on('SIGINT', gracefulShutdown);
+
+  httpServer.listen(PORT, (err) => {
     if (err) throw err;
     console.log(`> Server ready on http://localhost:${PORT}`);
     console.log(`> Admin panel: http://localhost:${PORT}/admin`);
     console.log(`> Default login: admin@example.com / admin123`);
+    console.log(`> User home directory: ${path.join(process.cwd(), 'user-home')}`);
   });
 })
 .catch((err) => {

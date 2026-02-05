@@ -1,24 +1,6 @@
 import db from '../../../lib/database.js';
 
-// Initialize users table if it doesn't exist
-const initializeTable = () => {
-  try {
-    db.exec(`
-      CREATE TABLE IF NOT EXISTS users (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        email TEXT UNIQUE NOT NULL,
-        name TEXT,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-  } catch (error) {
-    console.error('Error initializing users table:', error);
-  }
-};
-
 export default async function handler(req, res) {
-  initializeTable();
 
   const workflowTrigger = getWorkflowTrigger();
 

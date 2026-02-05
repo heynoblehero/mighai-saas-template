@@ -1,19 +1,19 @@
 # Production Dockerfile with Git Integration for Platform Updates
 FROM node:20-slim AS production
 
-# Install system dependencies including git
-RUN apt-get update && apt-get install -y \
-    git \
-    wget \
-    sqlite3 \
-    python3 \
-    make \
-    g++ \
+# Install system dependencies including git and BYOB runtime support
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    git wget curl sqlite3 procps sudo \
+    python3 python3-pip python3-venv python3-dev \
+    build-essential gcc g++ make \
     && rm -rf /var/lib/apt/lists/*
 
 # Create non-root user
 RUN groupadd -g 1001 nodejs && \
     useradd -r -u 1001 -g nodejs nextjs
+
+# Grant nextjs user sudo access for package installation (BYOB feature)
+RUN echo "nextjs ALL=(root) NOPASSWD: /usr/bin/apt-get, /usr/bin/pip3, /usr/bin/pip" > /etc/sudoers.d/nextjs
 
 WORKDIR /app
 
@@ -48,10 +48,10 @@ RUN npm rebuild better-sqlite3
 RUN npm run build
 
 # Create necessary directories and database file with proper permissions
-RUN mkdir -p data uploads logs && \
+RUN mkdir -p data uploads logs user-backend && \
     touch site_builder.db && \
     chown -R nextjs:nodejs . && \
-    chmod -R 755 data uploads logs && \
+    chmod -R 755 data uploads logs user-backend && \
     chmod 644 site_builder.db
 
 # Create enhanced startup script with git capabilities

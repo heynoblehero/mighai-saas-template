@@ -1,9 +1,11 @@
 # Multi-stage build for optimized production image
-FROM node:20-alpine AS base
+FROM node:20-slim AS base
 
 # Install dependencies only when needed
 FROM base AS deps
-RUN apk add --no-cache libc6-compat python3 make g++
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3 make g++ \
+    && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 
 # Copy package files
@@ -25,14 +27,24 @@ ENV NEXT_TELEMETRY_DISABLED=1
 RUN npm run build
 
 # Production image, copy all the files and run next
-FROM base AS runner
+FROM node:20-slim AS runner
 WORKDIR /app
 
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 
-RUN addgroup --system --gid 1001 nodejs
-RUN adduser --system --uid 1001 nextjs
+# Install runtime dependencies for BYOB feature
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3 python3-pip python3-venv \
+    git wget curl sqlite3 procps sudo \
+    build-essential gcc g++ make \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN groupadd --system --gid 1001 nodejs
+RUN useradd --system --uid 1001 --gid nodejs nextjs
+
+# Grant nextjs user sudo access for package installation
+RUN echo "nextjs ALL=(root) NOPASSWD: /usr/bin/apt-get, /usr/bin/pip3, /usr/bin/pip" > /etc/sudoers.d/nextjs
 
 # Copy necessary files from builder
 COPY --from=builder /app/public ./public
@@ -49,8 +61,8 @@ COPY --from=builder --chown=nextjs:nodejs /app/styles ./styles
 COPY --from=builder --chown=nextjs:nodejs /app/utils ./utils
 
 # Create required directories with proper permissions
-RUN mkdir -p /app/data /app/uploads /app/logs && \
-    chown -R nextjs:nodejs /app/data /app/uploads /app/logs
+RUN mkdir -p /app/data /app/uploads /app/logs /app/user-backend && \
+    chown -R nextjs:nodejs /app/data /app/uploads /app/logs /app/user-backend
 
 USER nextjs
 

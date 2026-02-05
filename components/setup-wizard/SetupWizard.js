@@ -12,6 +12,7 @@ import AIKeysStep from './steps/AIKeysStep';
 import EmailKeysStep from './steps/EmailKeysStep';
 import PaymentKeysStep from './steps/PaymentKeysStep';
 import PageGenerationStep from './steps/PageGenerationStep';
+import BackendFrontendStep from './steps/BackendFrontendStep';
 import ReviewCompleteStep from './steps/ReviewCompleteStep';
 
 const STEP_COMPONENTS = {
@@ -24,7 +25,8 @@ const STEP_COMPONENTS = {
   6: EmailKeysStep,
   7: PaymentKeysStep,
   8: PageGenerationStep,
-  9: ReviewCompleteStep
+  9: BackendFrontendStep,
+  10: ReviewCompleteStep
 };
 
 function WizardContent({ onClose }) {

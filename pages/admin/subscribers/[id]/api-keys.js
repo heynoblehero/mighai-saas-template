@@ -149,7 +149,7 @@ export default function SubscriberApiKeys() {
               Back to Subscribers
             </button>
             <h1 className="text-3xl font-bold text-slate-100">API Keys Management</h1>
-            <p className="text-slate-400 mt-1">Manage API keys for subscriber access to custom routes</p>
+            <p className="text-slate-400 mt-1">Manage API keys for subscriber access to your API</p>
           </div>
         </div>
 
@@ -290,17 +290,17 @@ export default function SubscriberApiKeys() {
         <div className="bg-slate-800 border border-slate-700 rounded-xl p-6">
           <h3 className="text-lg font-semibold text-slate-200 mb-4">Usage Instructions</h3>
           <p className="text-slate-400 text-sm mb-4">
-            Subscribers can use their API key to call custom routes that have "Allow API Key Access" enabled.
+            Subscribers can use their API key to call API endpoints that require authentication.
           </p>
           <div className="bg-slate-900 rounded-lg p-4 font-mono text-sm text-slate-300">
-            <p className="text-slate-500 mb-2"># Using Authorization header</p>
-            <p className="text-emerald-400">curl -X POST https://yoursite.com/api/custom/your-route \</p>
-            <p className="text-emerald-400 pl-4">-H "Authorization: Bearer sk_sub_xxx..." \</p>
+            <p className="text-slate-500 mb-2"># Using x-api-key header</p>
+            <p className="text-emerald-400">curl -X POST https://yoursite.com/api/v1/endpoint \</p>
+            <p className="text-emerald-400 pl-4">-H "x-api-key: sk_sub_xxx..." \</p>
             <p className="text-emerald-400 pl-4">-H "Content-Type: application/json" \</p>
             <p className="text-emerald-400 pl-4">-d '{"{\"data\": \"value\"}"}'</p>
-            <p className="text-slate-500 mt-4 mb-2"># Or using X-API-Key header</p>
-            <p className="text-emerald-400">curl -X GET https://yoursite.com/api/custom/your-route \</p>
-            <p className="text-emerald-400 pl-4">-H "X-API-Key: sk_sub_xxx..."</p>
+            <p className="text-slate-500 mt-4 mb-2"># Or using Authorization header</p>
+            <p className="text-emerald-400">curl -X GET https://yoursite.com/api/v1/endpoint \</p>
+            <p className="text-emerald-400 pl-4">-H "Authorization: Bearer sk_sub_xxx..."</p>
           </div>
         </div>
       </div>

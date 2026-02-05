@@ -12,7 +12,8 @@ export const WIZARD_STEPS = [
   { id: 6, name: 'Email Setup', skippable: true },
   { id: 7, name: 'Payment & Plans', skippable: true }, // Combined Payment + Plans
   { id: 8, name: 'Page Generation', skippable: false },
-  { id: 9, name: 'Complete', skippable: false }
+  { id: 9, name: 'Backend & Frontend', skippable: true },
+  { id: 10, name: 'Complete', skippable: false }
 ];
 
 export function SetupWizardProvider({ children }) {

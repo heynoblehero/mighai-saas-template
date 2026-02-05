@@ -33,15 +33,15 @@ const navigation = [
     items: [
       { name: 'Pages', href: '/admin/pages', icon: 'file-text', current: false },
       { name: 'Blog', href: '/admin/blog', icon: 'edit', current: false },
+      { name: 'Custom Frontend', href: '/admin/frontend', icon: 'upload', current: false },
     ]
   },
   {
     name: 'Backend',
     items: [
-      { name: 'API Routes', href: '/admin/backend/routes', icon: 'code', current: false },
+      { name: 'My App', href: '/admin/backend/app', icon: 'server', current: false },
       { name: 'Database', href: '/admin/database', icon: 'database', current: false },
-      { name: 'Storage', href: '/admin/storage', icon: 'hard-drive', current: false },
-      { name: 'Server Logs', href: '/admin/backend/server-logs', icon: 'file-text', current: false },
+      { name: 'API Docs', href: '/admin/api-docs', icon: 'book', current: false },
     ]
   },
   {
@@ -213,6 +213,26 @@ const icons = {
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
       <circle cx="9" cy="9" r="1" />
       <circle cx="15" cy="9" r="1" />
+    </svg>
+  ),
+  'server': (
+    <svg className="nav-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01" />
+    </svg>
+  ),
+  'terminal': (
+    <svg className="nav-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+    </svg>
+  ),
+  'upload': (
+    <svg className="nav-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+    </svg>
+  ),
+  'book': (
+    <svg className="nav-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
     </svg>
   ),
 };

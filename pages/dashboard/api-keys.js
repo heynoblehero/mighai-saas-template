@@ -284,12 +284,12 @@ export default function APIKeysPage({ useCustomContent, customContentHtml }) {
         <div className="bg-slate-800 border border-slate-700 rounded-xl p-6">
           <h3 className="text-lg font-semibold text-slate-200 mb-4">How to Use</h3>
           <p className="text-slate-400 text-sm mb-4">
-            Use your API key to call backend routes that have API key access enabled.
+            Use your API key to call API endpoints that require authentication.
           </p>
           <div className="bg-slate-900 rounded-lg p-4 font-mono text-sm text-slate-300 overflow-x-auto">
-            <p className="text-slate-500 mb-2"># Using Authorization header</p>
-            <p className="text-emerald-400">curl -X POST https://yoursite.com/api/custom/route-name \</p>
-            <p className="text-emerald-400 pl-4">-H "Authorization: Bearer YOUR_API_KEY" \</p>
+            <p className="text-slate-500 mb-2"># Using x-api-key header</p>
+            <p className="text-emerald-400">curl -X POST https://yoursite.com/api/v1/endpoint \</p>
+            <p className="text-emerald-400 pl-4">-H "x-api-key: YOUR_API_KEY" \</p>
             <p className="text-emerald-400 pl-4">-H "Content-Type: application/json" \</p>
             <p className="text-emerald-400 pl-4">-d '{"{\"data\": \"value\"}"}'</p>
           </div>

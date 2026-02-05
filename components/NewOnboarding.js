@@ -72,10 +72,10 @@ const NewOnboarding = ({ isOpen, onClose }) => {
     },
     {
       id: 6,
-      title: "Custom Backend Routes & API Keys",
+      title: "Deploy Your Backend App",
       type: "text",
       content: {
-        text: "Create powerful backend API routes that your subscribers can access programmatically! Go to Backend Routes to create custom endpoints with Node.js code. Enable 'Allow API Key Access' on routes you want subscribers to call via curl or code. Then generate API keys for subscribers from the Subscribers page. Subscribers can also manage their own keys from their dashboard. Each API call deducts from their plan's credit limit - perfect for building automation features, integrations, and developer APIs for your SaaS!"
+        text: "Deploy your own backend application in any language! Go to Backend > My App to connect a Git repository with your Flask, Django, Express, Go, or any other backend. The platform auto-detects the language, installs dependencies, and runs your app. Configure Gateway Routes to handle authentication, rate limiting, and billing automatically. Your backend receives user info via headers (X-User-Id, X-User-Email, etc.) and can call the Internal API to access SaaS features. Generate API keys for subscribers from the Subscribers page - perfect for building APIs, automation, and integrations!"
       }
     },
     {

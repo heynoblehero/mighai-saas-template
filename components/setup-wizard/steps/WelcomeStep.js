@@ -40,6 +40,24 @@ export default function WelcomeStep() {
       ),
       title: 'Page Generation',
       description: 'AI creates your landing, pricing, and more'
+    },
+    {
+      icon: (
+        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+        </svg>
+      ),
+      title: 'Backend / Shell Access',
+      description: 'Run services, install packages, full server control'
+    },
+    {
+      icon: (
+        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+        </svg>
+      ),
+      title: 'Custom Frontend',
+      description: 'Deploy your own frontend with API integration'
     }
   ];
 
@@ -62,7 +80,7 @@ export default function WelcomeStep() {
       </div>
 
       {/* Features grid */}
-      <div className="grid grid-cols-2 gap-4 mb-8">
+      <div className="grid grid-cols-3 gap-4 mb-8">
         {features.map((feature, index) => (
           <div
             key={index}

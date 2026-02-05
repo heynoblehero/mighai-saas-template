@@ -34,8 +34,7 @@ async function handler(req, res) {
             telegram_chat_id: null,
             require_on_login: true,
             require_on_database_changes: true,
-            require_on_page_changes: true,
-            require_on_route_changes: true
+            require_on_page_changes: true
           }
         });
       }
@@ -58,8 +57,7 @@ async function handler(req, res) {
         telegram_chat_id,
         require_on_login,
         require_on_database_changes,
-        require_on_page_changes,
-        require_on_route_changes
+        require_on_page_changes
       } = req.body;
 
       // Validate Telegram settings if method includes telegram
@@ -114,7 +112,6 @@ async function handler(req, res) {
                  require_on_login = ?,
                  require_on_database_changes = ?,
                  require_on_page_changes = ?,
-                 require_on_route_changes = ?,
                  updated_at = CURRENT_TIMESTAMP
              WHERE user_id = ?`,
             [
@@ -125,7 +122,6 @@ async function handler(req, res) {
               require_on_login !== false ? 1 : 0,
               require_on_database_changes !== false ? 1 : 0,
               require_on_page_changes !== false ? 1 : 0,
-              require_on_route_changes !== false ? 1 : 0,
               userId
             ],
             (err) => {
@@ -140,8 +136,8 @@ async function handler(req, res) {
           db.run(
             `INSERT INTO admin_2fa_settings (
               user_id, is_enabled, method, telegram_bot_token, telegram_chat_id,
-              require_on_login, require_on_database_changes, require_on_page_changes, require_on_route_changes
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+              require_on_login, require_on_database_changes, require_on_page_changes
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
             [
               userId,
               is_enabled ? 1 : 0,
@@ -150,8 +146,7 @@ async function handler(req, res) {
               telegram_chat_id || null,
               require_on_login !== false ? 1 : 0,
               require_on_database_changes !== false ? 1 : 0,
-              require_on_page_changes !== false ? 1 : 0,
-              require_on_route_changes !== false ? 1 : 0
+              require_on_page_changes !== false ? 1 : 0
             ],
             (err) => {
               if (err) reject(err);

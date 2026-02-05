@@ -22,10 +22,11 @@ const dbPath = path.join(process.cwd(), 'site_builder.db');
 
 // Shared database connection with busy timeout to prevent SQLITE_BUSY errors
 let sharedDb = null;
+let dbInitialized = false;
+
 function getDb() {
   if (!sharedDb) {
     sharedDb = new sqlite3.Database(dbPath);
-    // Set busy timeout to wait up to 5 seconds when database is locked
     sharedDb.run('PRAGMA busy_timeout = 5000');
     sharedDb.run('PRAGMA journal_mode = WAL');
   }
@@ -39,10 +40,15 @@ class EmailService {
   }
 
   initDatabase() {
+    if (dbInitialized) return;
+    dbInitialized = true;
+
     const db = getDb();
 
-    // Create email_settings table
-    db.run(`
+    // Use serialize to ensure tables are created before inserts
+    db.serialize(() => {
+      // Create email_settings table
+      db.run(`
       CREATE TABLE IF NOT EXISTS email_settings (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         admin_email TEXT NOT NULL,
@@ -144,8 +150,9 @@ class EmailService {
       VALUES (1, 'admin@mighai.com', 'noreply@mighai.com', 'Mighai')
     `);
 
-    // Insert default email templates
-    this.insertDefaultTemplates(db);
+      // Insert default email templates
+      this.insertDefaultTemplates(db);
+    }); // End serialize
   }
 
   insertDefaultTemplates(db) {

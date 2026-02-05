@@ -20,68 +20,26 @@ export default function InfrastructureHub() {
       )
     },
     {
-      label: 'Storage',
-      icon: '💾',
+      label: 'My App',
+      icon: '🚀',
       content: (
         <div>
-          <p className="text-slate-400 mb-6">Manage uploaded files and storage</p>
+          <p className="text-slate-400 mb-6">Deploy and manage your backend application</p>
           <iframe
-            src="/admin/storage"
+            src="/admin/backend/app"
             className="w-full h-[700px] border border-slate-700 rounded-lg"
-            title="Storage Management"
+            title="My App"
           />
         </div>
       )
     },
-    {
-      label: 'API Routes',
-      icon: '🔌',
-      content: (
-        <div>
-          <p className="text-slate-400 mb-6">View and test API endpoints</p>
-          <iframe
-            src="/admin/backend/routes"
-            className="w-full h-[700px] border border-slate-700 rounded-lg"
-            title="API Routes"
-          />
-        </div>
-      )
-    },
-    {
-      label: 'Server Logs',
-      icon: '📋',
-      content: (
-        <div>
-          <p className="text-slate-400 mb-6">View server logs and activity</p>
-          <iframe
-            src="/admin/backend/server-logs"
-            className="w-full h-[700px] border border-slate-700 rounded-lg"
-            title="Server Logs"
-          />
-        </div>
-      )
-    },
-    {
-      label: 'Integrations',
-      icon: '⚡',
-      content: (
-        <div>
-          <p className="text-slate-400 mb-6">Manage third-party integrations</p>
-          <iframe
-            src="/admin/integrations"
-            className="w-full h-[700px] border border-slate-700 rounded-lg"
-            title="Integrations"
-          />
-        </div>
-      )
-    }
   ];
 
   return (
     <AdminLayout>
       <HubPageLayout
         title="Infrastructure"
-        description="Manage database, storage, API routes, logs, and integrations"
+        description="Manage database and your backend app"
         icon="🖥️"
       >
         <TabNavigation tabs={tabs} />
