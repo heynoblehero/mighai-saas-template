@@ -97,6 +97,13 @@ Thumbs.db
 # Uploads directory (typically for user-uploaded content)
 uploads/
 
+# AI settings (contains API keys)
+data/ai-settings.json
+
+# User runtime data
+user-home/
+custom-frontend/
+
 # Local config files
 local-config.json
 config/local.json

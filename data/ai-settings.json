@@ -1,5 +1,5 @@
 {
-  "claude_api_key": "REDACTED",
+  "claude_api_key": "",
   "claude_model": "claude-sonnet-4-5-20250929",
   "max_tokens": 16384,
   "temperature": 0.35,
